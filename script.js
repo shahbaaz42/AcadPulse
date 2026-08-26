@@ -1,6 +1,7 @@
 (function (root) {
   "use strict";
-  const METADATA_ALIASES = new Set(["rollno","rollnumber","roll","sno","serialnumber","admno","admissionno","admissionnumber","studentname","nameofthestudent","name","house","class","section","gender","sex"]);
+  const ADMISSION_ALIASES = ["admno","admnno","admissionno","admissionnumber","admissionnum","admnnumber"];
+  const METADATA_ALIASES = new Set(["rollno","rollnumber","roll","sno","serialnumber",...ADMISSION_ALIASES,"studentname","nameofthestudent","name","house","class","section","gender","sex"]);
   const normalizeHeader = value => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
   const findColumn = (headers, aliases) => headers.findIndex(h => aliases.includes(normalizeHeader(h)));
   function pointsForPercentage(percentage) {
@@ -33,7 +34,7 @@
     const dataRows = rows.slice(headerIndex + 1).filter(row => String(row[nameIndex] ?? "").trim());
     const subjects = headers.map((name, index) => ({ name, index })).filter(({name,index}) => name && !METADATA_ALIASES.has(normalizeHeader(name)) && dataRows.some(row => row[index] === 0 || (row[index] !== "" && row[index] != null && Number.isFinite(Number(row[index])))));
     if (!subjects.length) throw new Error("No numeric subject columns were detected.");
-    return { headers, headerIndex, dataRows, subjects, columns: { name:nameIndex, house:houseIndex, roll:findColumn(headers,["rollno","rollnumber","roll","sno","serialnumber"]), admission:findColumn(headers,["admno","admissionno","admissionnumber"]) } };
+    return { headers, headerIndex, dataRows, subjects, columns: { name:nameIndex, house:houseIndex, roll:findColumn(headers,["rollno","rollnumber","roll","sno","serialnumber"]), admission:findColumn(headers,ADMISSION_ALIASES) } };
   }
   function buildScoreboard(structure, maximums) {
     const houses = {};
@@ -49,14 +50,27 @@
     });
     return houses;
   }
-  const api = { pointsForPercentage, percentageForMark, normalizeHouse, detectStructure, buildScoreboard, normalizeHeader };
+  function resetScoreboardState(state) {
+    state.houses = null;
+    state.maximums = null;
+    state.generatedFor = null;
+    return state;
+  }
+  const api = { pointsForPercentage, percentageForMark, normalizeHouse, detectStructure, buildScoreboard, normalizeHeader, resetScoreboardState };
   if (typeof module !== "undefined") module.exports = api;
   if (typeof document === "undefined") return;
 
   let state = { structure:null, houses:null, filename:"" };
   const $ = id => document.getElementById(id); const message = (text,success=false) => { $("message").textContent=text; $("message").className=`message${success?" success":""}`; $("message").hidden=false; };
+  function invalidateGeneratedScoreboard() {
+    resetScoreboardState(state);
+    $("preview").hidden=true;
+    $("previewMeta").innerHTML=""; $("houseSummary").innerHTML=""; $("houseTables").innerHTML="";
+    $("downloadBtn").disabled=true;
+  }
   async function loadFile(file) {
     try {
+      invalidateGeneratedScoreboard();
       if (!file || !file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Please choose an .xlsx workbook.");
       if (file.size > 10*1024*1024) throw new Error("The workbook is larger than the 10 MB limit.");
       if (typeof XLSX === "undefined" || typeof XLSX.read !== "function" || !XLSX.utils) throw new Error("The local Excel component failed to initialize. Verify that vendor/acadpulse-xlsx.js is present, then reload the application.");
@@ -76,7 +90,7 @@
       if (!state.structure) throw new Error("Upload a consolidation workbook first.");
       const details={exam:$("examName").value.trim(),className:$("className").value.trim(),section:$("sectionName").value.trim()}; if(Object.values(details).some(v=>!v)) throw new Error("Complete Exam Name, Class and Section.");
       const maximums={}; document.querySelectorAll(".max-mark").forEach(input=>maximums[input.dataset.subject]=Number(input.value)); if(Object.values(maximums).some(v=>!Number.isFinite(v)||v<=0)) throw new Error("Enter a valid maximum mark greater than zero for every subject.");
-      state.details=details; state.maximums=maximums; state.houses=buildScoreboard(state.structure,maximums); renderPreview(); $("preview").hidden=false; $("preview").scrollIntoView({behavior:"smooth"});
+      state.details=details; state.maximums=maximums; state.houses=buildScoreboard(state.structure,maximums); state.generatedFor=state.filename; renderPreview(); $("downloadBtn").disabled=false; $("preview").hidden=false; $("preview").scrollIntoView({behavior:"smooth"});
     } catch(error){message(error.message);}
   }
   function stats(students){const total=students.reduce((a,s)=>a+s.total,0); return {total,average:students.length?total/students.length:0};}
@@ -86,6 +100,7 @@
     $("houseTables").innerHTML=Object.entries(state.houses).map(([house,students])=>{const x=stats(students);return `<article class="house-block"><h3>${escapeHtml(house)}</h3><div class="table-scroll"><table><thead><tr><th rowspan="2">Roll No</th><th rowspan="2">Admission No</th><th rowspan="2">Student Name</th>${state.structure.subjects.map(s=>`<th colspan="2">${escapeHtml(s.name)}</th>`).join("")}<th rowspan="2">Total Points</th><th rowspan="2">Average Points</th></tr><tr>${state.structure.subjects.map(()=>`<th>Percentage</th><th>Points</th>`).join("")}</tr></thead><tbody>${students.map(s=>`<tr><td>${escapeHtml(s.roll)}</td><td>${escapeHtml(s.admission)}</td><td class="name">${escapeHtml(s.name)}</td>${s.results.map(r=>`<td>${fmt(r.percentage)}</td><td>${fmt(r.points)}</td>`).join("")}<td>${s.total}</td><td>${fmt(s.average)}</td></tr>`).join("")}<tr class="totals"><td colspan="3">House totals / averages</td>${state.structure.subjects.map((_,i)=>{const pts=students.reduce((a,s)=>a+(s.results[i].points??0),0);const valid=students.filter(s=>s.results[i].points!==null);return `<td>—</td><td>${pts} / ${valid.length?fmt(pts/valid.length):"—"}</td>`}).join("")}<td>${x.total}</td><td>${fmt(x.average)}</td></tr></tbody></table></div></article>`}).join("");
   }
   async function downloadExcel(){
+    if (!state.houses || state.generatedFor !== state.filename) { message("Generate the scoreboard for the current workbook before downloading."); return; }
     const wb=XLSX.utils.book_new(); const safeSheet=name=>name.replace(/[\\/?*\[\]:]/g," ").slice(0,31);
     Object.entries(state.houses).forEach(([house,students])=>{const rows=[["AcadPulse — Scoreboard Generator"],[`Exam: ${state.details.exam}`],[`Class: ${state.details.className}`,`Section: ${state.details.section}`],[`House: ${house}`],[],["Roll No","Admission No","Student Name",...state.structure.subjects.flatMap(s=>[`${s.name} Percentage`,`${s.name} Points`]),"Total Points","Average Points"]]; students.forEach(s=>rows.push([s.roll,s.admission,s.name,...s.results.flatMap(r=>[r.percentage==null?"":r.percentage,r.points==null?"":r.points]),s.total,s.average==null?"":s.average])); const x=stats(students); rows.push([], ["House Summary","Students",students.length,"Total Points",x.total,"Average Points",x.average]); const ws=XLSX.utils.aoa_to_sheet(rows); ws["!cols"]=[{wch:12},{wch:16},{wch:28},...state.structure.subjects.flatMap(()=>[{wch:16},{wch:12}]),{wch:14},{wch:16}]; ws["!freeze"]={xSplit:3,ySplit:6}; XLSX.utils.book_append_sheet(wb,ws,safeSheet(house));});
     const summary=[["AcadPulse — Overall House Summary"],[`Exam: ${state.details.exam}`,`Class: ${state.details.className}`,`Section: ${state.details.section}`],[],["House","Students","Total Points","Average Points per Student"],...Object.entries(state.houses).map(([h,s])=>{const x=stats(s);return[h,s.length,x.total,x.average]})]; const ws=XLSX.utils.aoa_to_sheet(summary); ws["!cols"]=[{wch:30},{wch:12},{wch:16},{wch:28}]; XLSX.utils.book_append_sheet(wb,ws,"House Summary");
