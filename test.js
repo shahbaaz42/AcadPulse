@@ -1,8 +1,21 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const {pointsForPercentage, percentageForMark, normalizeHouse, detectStructure, buildScoreboard} = require("./script.js");
 assert.equal(percentageForMark(40,80),50); assert.equal(percentageForMark(40,50),80); assert.equal(percentageForMark("",80),null); assert.equal(percentageForMark("Absent",80),null);
 [[95,5],[94.99,3],[81,3],[80.99,2],[61,2],[60.99,0],[null,null]].forEach(([p,v])=>assert.equal(pointsForPercentage(p),v));
 assert.equal(normalizeHouse(" BLUE "),"House of Blue"); assert.equal(normalizeHouse("Blue House"),"House of Blue"); assert.equal(normalizeHouse(" HOUSE OF FAITH"),"House of Faith");
 const rows=[["ROLLNO","ADMNO","STUDENT NAME","Science","Maths","Gender","HOUSE"],[1,100,"Asha",40,45,"F","BLUE"],[2,101,"Ben","Absent",50,"M","Blue House"]];
 const structure=detectStructure(rows); assert.deepEqual(structure.subjects.map(s=>s.name),["Science","Maths"]); const result=buildScoreboard(structure,{Science:80,Maths:50}); assert.equal(Object.keys(result).length,1); assert.equal(result["House of Blue"][0].total,3); assert.equal(result["House of Blue"][1].results[0].points,null);
-console.log("All calculation and workbook-processing tests passed.");
+require("./vendor/acadpulse-xlsx.js");
+(async () => {
+  const source = await globalThis.XLSX.read(fs.readFileSync("X BC Pre Mid Term Consolidation.xlsx"));
+  const sourceRows = globalThis.XLSX.utils.sheet_to_json(source.Sheets[source.SheetNames[0]], {header:1, defval:"", raw:true});
+  const reference = detectStructure(sourceRows);
+  assert.deepEqual(reference.subjects.map(subject => subject.name), ["Science","Social","Lang II","English","Maths","Arabic"]);
+  assert.equal(reference.dataRows.length, 33);
+  const workbook = globalThis.XLSX.utils.book_new();
+  globalThis.XLSX.utils.book_append_sheet(workbook, globalThis.XLSX.utils.aoa_to_sheet([["House","Total"],["House of Faith",42]]), "Summary");
+  const roundTrip = await globalThis.XLSX.read(await globalThis.XLSX.write(workbook));
+  assert.deepEqual(globalThis.XLSX.utils.sheet_to_json(roundTrip.Sheets.Summary,{header:1,defval:"",raw:true}), [["House","Total"],["House of Faith",42]]);
+  console.log("All calculation and workbook-processing tests passed.");
+})().catch(error => { console.error(error); process.exitCode=1; });

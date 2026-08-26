@@ -13,7 +13,7 @@ AcadPulse is an **Academic Intelligence Platform**. This first, deliberately foc
 
 ## Run locally
 
-The Excel reader is loaded from the jsDelivr CDN, so an internet connection is needed on the first load.
+The repository includes its Excel reader/writer at `vendor/acadpulse-xlsx.js`. No installation or internet connection is required.
 
 ```bash
 npm run serve
@@ -48,7 +48,7 @@ Blank or non-numeric results receive neither a percentage nor points. A literal 
 
 ## Privacy
 
-Parsing, calculations, preview generation and Excel creation happen in the user's browser. The application has no backend and does not transmit workbook content. The SheetJS library itself is fetched from a public CDN; it executes locally after loading.
+Parsing, calculations, preview generation and Excel creation happen in the user's browser. The application has no backend, does not transmit workbook content, and loads its Excel component from the local repository.
 
 ## Current limitations
 
@@ -56,7 +56,7 @@ Parsing, calculations, preview generation and Excel creation happen in the user'
 - The header row must contain recognizable Student Name and House labels.
 - Subject detection expects at least one numeric value in each marks column.
 - House normalization handles whitespace/case and common `House of …` / `… House` forms, but does not merge unrelated aliases.
-- Downloaded workbooks prioritize portable structure, widths and readable sheets; advanced cell styling is limited by the browser library build.
+- Downloaded workbooks prioritize portable structure, widths and readable sheets; advanced cell styling is outside the local XLSX compatibility layer's intentionally small API.
 - Formula-only cells without cached numeric values may not be recognized as marks.
 
 ## Planned improvements
