@@ -8,7 +8,8 @@ AcadPulse is an **Academic Intelligence Platform**. This first, deliberately foc
 - Detects identity/metadata fields and dynamically identifies numeric marks columns as subjects.
 - Collects Exam Name, Class, Section and a separate maximum mark for every subject.
 - Converts obtained marks to percentages and points, groups students by normalized House values, and displays student and house totals/averages.
-- Downloads a multi-sheet Excel workbook (one sheet per house plus an overall summary).
+- Downloads a professionally formatted, single-sheet Excel report with every House followed by an overall summary.
+- Produces a printable full-report PDF or an individual House PDF through the browser's native, offline print-to-PDF workflow.
 - Leaves blank and non-numeric marks blank rather than treating them as zero.
 
 ## Run locally
@@ -58,6 +59,7 @@ Parsing, calculations, preview generation and Excel creation happen in the user'
 - House normalization handles whitespace/case and common `House of …` / `… House` forms, but does not merge unrelated aliases.
 - Downloaded workbooks prioritize portable structure, widths and readable sheets; advanced cell styling is outside the local XLSX compatibility layer's intentionally small API.
 - Formula-only cells without cached numeric values may not be recognized as marks.
+- PDF export opens the browser print dialog so the teacher can choose **Save as PDF**; browsers intentionally require this user confirmation and may block the report window until pop-ups are allowed for localhost.
 
 ## Planned improvements
 
