@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AcadPulse — Scoreboard Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="AcadPulse home"><span class="brand-mark">A</span><span><strong>AcadPulse</strong><small>Academic Intelligence Platform</small></span></a>
+    <span class="module-pill"><i></i> Scoreboard Generator</span>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div><span class="eyebrow">ACADEMIC PERFORMANCE · V1</span><h1>Turn marks into a<br><em>house scoreboard.</em></h1><p>Upload your consolidation workbook, set the exam details and generate a polished, house-wise scoreboard in minutes.</p></div>
+      <div class="privacy-card"><span>⌁</span><div><strong>Private by design</strong><p>Your workbook stays in this browser. Student data is never sent to a server.</p></div></div>
+    </section>
+
+    <nav class="steps" aria-label="Generator progress">
+      <span class="active"><b>1</b> Upload</span><i></i><span><b>2</b> Exam Details</span><i></i><span><b>3</b> Maximum Marks</span><i></i><span><b>4</b> Generate</span><i></i><span><b>5</b> Preview &amp; Download</span>
+    </nav>
+
+    <div id="message" class="message" role="alert" hidden></div>
+    <section class="workspace">
+      <article class="card upload-card">
+        <div class="section-heading"><span class="number">01</span><div><h2>Upload Consolidation File</h2><p>Start with your class marks workbook</p></div></div>
+        <label class="dropzone" id="dropzone">
+          <input id="fileInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          <span class="upload-icon">⇧</span><strong>Drop your workbook here</strong><p>or <u>browse from your computer</u></p><small>XLSX · Maximum 10 MB</small>
+        </label>
+        <div id="fileSummary" class="file-summary" hidden></div>
+      </article>
+
+      <article class="card locked" id="examCard">
+        <div class="section-heading"><span class="number">02</span><div><h2>Exam Details</h2><p>Tell us what this scoreboard is for</p></div></div>
+        <div class="form-grid">
+          <label>Exam Name<input id="examName" placeholder="e.g. Pre Mid Term Exam" required></label>
+          <label>Class<input id="className" placeholder="e.g. X" required></label>
+          <label>Section<input id="sectionName" placeholder="e.g. BC" required></label>
+        </div>
+      </article>
+
+      <article class="card locked" id="marksCard">
+        <div class="section-heading"><span class="number">03</span><div><h2>Maximum Marks</h2><p>Set the maximum for each detected subject</p></div></div>
+        <div class="same-marks"><label>Set same maximum marks for all subjects</label><div><input id="sameMarks" type="number" min="0.01" step="0.01" placeholder="e.g. 80"><button id="applyMarks" class="secondary" type="button">Apply to all</button></div></div>
+        <div id="subjectMarks" class="subject-marks"></div>
+      </article>
+    </section>
+
+    <button id="generateBtn" class="generate" disabled><span>Generate Scoreboard</span><b>→</b></button>
+
+    <section id="preview" class="preview" hidden>
+      <div class="preview-toolbar"><div><span class="eyebrow">LIVE PREVIEW</span><h2>House Scoreboard</h2></div><button id="downloadBtn" class="download">⇩ Download Excel</button></div>
+      <div id="previewMeta" class="preview-meta"></div>
+      <div id="houseSummary"></div>
+      <div id="houseTables"></div>
+    </section>
+  </main>
+  <footer>AcadPulse <span>·</span> Academic Intelligence Platform <small>Scoreboard Generator V1</small></footer>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
