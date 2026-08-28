@@ -1,6 +1,11 @@
-# AcadPulse — Scoreboard Generator V1
+# AcadPulse — Academic Intelligence Platform
 
-AcadPulse is an **Academic Intelligence Platform**. This first, deliberately focused module converts a class consolidation workbook into a clear, house-wise academic scoreboard. Attendance, authentication, databases, LMS features, analytics, portals and other future modules are outside V1.
+AcadPulse contains focused, browser-local academic tools. Use the module selector to move between:
+
+- **Scoreboard Generator V1** — converts a class consolidation workbook into a house-wise points scoreboard with Excel and PDF output.
+- **Result Analytics Dashboard — Phase 1** — turns a result workbook into a filterable Page 1 overall-summary dashboard.
+
+Attendance, authentication, databases, LMS features and portals remain outside the platform's current scope.
 
 ## What V1 does
 
@@ -50,6 +55,39 @@ Blank or non-numeric results receive neither a percentage nor points. A literal 
 ## Privacy
 
 Parsing, calculations, preview generation and Excel creation happen in the user's browser. The application has no backend, does not transmit workbook content, and loads its Excel component from the local repository.
+
+## Result Analytics Dashboard — Phase 1
+
+### Workflow and source workbook
+
+Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. The header may appear after introductory rows, but must contain recognizable aliases for **Student Name**, **Class** and **Gender**. Roll Number, Admission Number and Section are optional. All remaining columns with numeric student values are detected dynamically as subjects, so the module is not limited to the six subjects in the reference workbook.
+
+Phase 1 uses one configurable **Maximum Marks** and **Pass Mark** for every detected subject. Exam Name and Academic Year identify the dashboard. The included reference workbook uses Maximum Marks `100` and Pass Mark `33`; teachers can change both for other exams.
+
+### Calculations
+
+- **Total Marks** is the sum of every detected subject mark.
+- **Percentage** is `Total Marks / (Maximum Marks × number of subjects) × 100`, rounded to two decimals per student.
+- **No. of Subjects Failed** counts marks below the Pass Mark, including zero, exactly as documented in the Power Query process.
+- **No. of Subjects Absent** counts marks equal to zero.
+- **PASS** means every subject mark is at least the Pass Mark.
+- **FAIL** means at least one non-zero mark is below the Pass Mark. This takes precedence when the same student also has a zero.
+- **ABSENT** means at least one mark is zero and there is no non-zero failing mark.
+- **Present** means the student has zero absent subjects.
+- Subject averages include only marks greater than zero. Percentage bands use numeric 10-point ranges, with `100` in `90-100`.
+
+The dashboard provides Total Students, Passed, Pass %, Present, Present %, Average Marks and Average % cards; dynamic subject averages; result and percentage-range distributions; and top/bottom ten tables. Top/bottom ranking uses Power BI-compatible skipped ranks for ties.
+
+### Filters and privacy
+
+Class and Gender values come from the workbook. Either filter—or both together—updates every card, chart and table immediately; **Reset filters** restores the complete dataset. Workbook bytes, student identifiers, names and results remain in browser memory and are never sent to a backend. New telemetry is event-name-only and contains no workbook filename, filter, student or result data.
+
+### Current Result Analytics limitations
+
+- Phase 1 supports `.xlsx`, reads the first worksheet, and applies a common maximum/pass mark to all subjects.
+- Every detected subject cell for a student must be numeric; malformed or blank result cells are reported rather than silently reclassified.
+- Charts are responsive inline SVG rendered by a small repository-local renderer. They require no runtime chart CDN and provide native hover titles, but Phase 1 does not implement chart-click cross-filtering.
+- Page 2 Subject Analysis, Page 3 Student Explorer and Topper Summary are intentionally not included. Page 2 and Page 3 are planned as separately validated follow-up phases.
 
 ## Current limitations
 
