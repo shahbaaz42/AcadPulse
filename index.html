@@ -8,6 +8,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <!-- Google tag (gtag.js): usage telemetry only; workbook data remains local. -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-WNEYWX5WTY"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-WNEYWX5WTY', {
+      'allow_google_signals': false,
+      'allow_ad_personalization_signals': false
+    });
+  </script>
 </head>
 <body>
   <header class="topbar">
@@ -63,6 +74,7 @@
   </main>
   <footer>AcadPulse <span>·</span> Academic Intelligence Platform <small>Scoreboard Generator V1</small></footer>
   <script src="vendor/acadpulse-xlsx.js"></script>
+  <script src="analytics.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

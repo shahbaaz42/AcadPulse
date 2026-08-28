@@ -90,6 +90,9 @@
 
   let state = { structure:null, houses:null, filename:"" };
   const $ = id => document.getElementById(id); const message = (text,success=false) => { $("message").textContent=text; $("message").className=`message${success?" success":""}`; $("message").hidden=false; };
+  const trackAnalytics = eventName => {
+    try { root.AcadPulseAnalytics?.trackEvent(eventName); } catch (_) { /* Analytics must never interrupt workbook processing. */ }
+  };
   function invalidateGeneratedScoreboard() {
     resetScoreboardState(state);
     $("preview").hidden=true;
@@ -109,7 +112,8 @@
       $("fileSummary").hidden=false; [$("examCard"),$("marksCard")].forEach(el=>el.classList.remove("locked")); $("generateBtn").disabled=false;
       $("subjectMarks").innerHTML=state.structure.subjects.map((s,i)=>`<label>${escapeHtml(s.name)}<input class="max-mark" data-subject="${escapeHtml(s.name)}" type="number" min="0.01" step="0.01" placeholder="Maximum marks" aria-label="Maximum marks for ${escapeHtml(s.name)}"></label>`).join("");
       message("Workbook read successfully. Review the detected subjects and complete the details.",true);
-    } catch(error){ state.structure=null; message(error.message); }
+      trackAnalytics("workbook_uploaded");
+    } catch(error){ state.structure=null; trackAnalytics("generation_error"); message(error.message); }
   }
   const escapeHtml = value => String(value??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const fmt = value => value == null ? '<span class="blank">—</span>' : Number(value.toFixed(2)).toString();
@@ -119,7 +123,8 @@
       const details={exam:$("examName").value.trim(),className:$("className").value.trim(),section:$("sectionName").value.trim()}; if(Object.values(details).some(v=>!v)) throw new Error("Complete Exam Name, Class and Section.");
       const maximums={}; document.querySelectorAll(".max-mark").forEach(input=>maximums[input.dataset.subject]=Number(input.value)); if(Object.values(maximums).some(v=>!Number.isFinite(v)||v<=0)) throw new Error("Enter a valid maximum mark greater than zero for every subject.");
       state.details=details; state.maximums=maximums; state.houses=buildScoreboard(state.structure,maximums); state.generatedFor=state.filename; renderPreview(); $("downloadBtn").disabled=false; $("pdfBtn").disabled=false; $("preview").hidden=false; $("preview").scrollIntoView({behavior:"smooth"});
-    } catch(error){message(error.message);}
+      trackAnalytics("scoreboard_generated");
+    } catch(error){trackAnalytics("generation_error");message(error.message);}
   }
   function stats(students){return houseStats(students);}
   function renderPreview(){
@@ -131,13 +136,14 @@
     if (!state.houses || state.generatedFor !== state.filename) { message("Generate the scoreboard for the current workbook before downloading."); return; }
     const wb=buildConsolidatedWorkbook(state.structure,state.houses,state.details,XLSX);
     const slug=buildReportTitle(state.details); await XLSX.writeFile(wb,`${slug}.xlsx`);
+    trackAnalytics("excel_download");
   }
   function printableReport(selectedHouse) {
     const entries=selectedHouse?[selectedHouse]:Object.entries(state.houses), table=(house,students)=>{const totals=houseStats(students),subjectTotals=state.structure.subjects.map((_,i)=>students.reduce((sum,s)=>sum+(s.results[i].points??0),0));return `<section class="pdf-house"><h2>${escapeHtml(house)}</h2><p class="section-meta">AcadPulse · ${escapeHtml(state.details.exam)} · Class ${escapeHtml(state.details.className)} · Section ${escapeHtml(state.details.section)}</p><table><thead><tr><th rowspan="2">Roll No</th><th rowspan="2">Admission No</th><th rowspan="2">Student Name</th>${state.structure.subjects.map(s=>`<th colspan="2">${escapeHtml(s.name)}</th>`).join("")}<th rowspan="2">Total Points</th><th rowspan="2">Average Points</th></tr><tr>${state.structure.subjects.map(()=>"<th>Percentage</th><th>Points</th>").join("")}</tr></thead><tbody>${students.map(s=>`<tr><td>${escapeHtml(s.roll)}</td><td>${escapeHtml(s.admission)}</td><td class="left">${escapeHtml(s.name)}</td>${s.results.map(r=>`<td>${r.percentage==null?"—":round2(r.percentage)}</td><td>${r.points??"—"}</td>`).join("")}<td>${s.total}</td><td>${round2(s.average)??"—"}</td></tr>`).join("")}<tr class="total"><td colspan="3">Subject Total Points</td>${subjectTotals.map(v=>`<td></td><td>${v}</td>`).join("")}<td>${totals.total}</td><td></td></tr><tr class="total"><td colspan="3">Subject Average Points · ${students.length} students</td>${subjectTotals.map((v,i)=>{const n=students.filter(s=>s.results[i].points!==null).length;return `<td></td><td>${n?round2(v/n):"—"}</td>`}).join("")}<td></td><td>${totals.average}</td></tr></tbody></table></section>`;};
     const summary=!selectedHouse?`<section class="pdf-house summary"><h2>HOUSE SUMMARY</h2><table><thead><tr><th>House</th><th>Students</th><th>Total Points</th><th>Average Points per Student</th></tr></thead><tbody>${Object.entries(state.houses).map(([h,s])=>{const x=houseStats(s);return `<tr><td class="left">${escapeHtml(h)}</td><td>${x.students}</td><td>${x.total}</td><td>${x.average}</td></tr>`}).join("")}</tbody></table></section>`:"";
     return `<!doctype html><html><head><meta charset="utf-8"><title>${buildReportTitle(state.details,Boolean(selectedHouse))}</title><style>@page{size:landscape;margin:0}*{box-sizing:border-box}body{margin:0;padding:10mm 10mm 14mm;font:10px Arial,sans-serif;color:#142b25}header{text-align:center;margin-bottom:16px}h1{margin:0;font-size:22px}header p{margin:3px}.pdf-house{break-before:page;page-break-before:always}.pdf-house:first-of-type{break-before:auto;page-break-before:auto}h2{padding:7px;margin-bottom:3px;background:#d9eee5;text-align:center;font-size:14px}.section-meta{text-align:center;margin:0 0 7px;color:#52645d}table{width:100%;border-collapse:collapse;page-break-inside:auto}thead{display:table-header-group}tr{page-break-inside:avoid}th,td{border:1px solid #71817b;padding:4px;text-align:center}th{background:#142b25;color:white}.left{text-align:left}.total td{background:#edf4f1;font-weight:bold}.summary{font-size:11px}.print-footer{position:fixed;right:10mm;bottom:4mm;left:10mm;text-align:center;color:#60706a;font-size:8px}</style></head><body><header><h1>AcadPulse</h1><p>Academic Intelligence Platform</p><strong>${escapeHtml(state.details.exam)} – Scoreboard</strong><p>Class ${escapeHtml(state.details.className)} – Section ${escapeHtml(state.details.section)}</p></header><footer class="print-footer">${DEVELOPER_CREDIT}</footer>${entries.map(([h,s])=>table(h,s)).join("")}${summary}<script>window.onload=()=>window.print()<\/script></body></html>`;
   }
-  function downloadPdf(selectedHouse){if(!state.houses||state.generatedFor!==state.filename){message("Generate the scoreboard for the current workbook before downloading.");return;}const popup=window.open("","_blank");if(!popup){message("The PDF print window was blocked. Allow pop-ups for this local application and try again.");return;}popup.document.open();popup.document.write(printableReport(selectedHouse));popup.document.close();}
+  function downloadPdf(selectedHouse){if(!state.houses||state.generatedFor!==state.filename){message("Generate the scoreboard for the current workbook before downloading.");return;}const popup=window.open("","_blank");if(!popup){message("The PDF print window was blocked. Allow pop-ups for this local application and try again.");return;}popup.document.open();popup.document.write(printableReport(selectedHouse));popup.document.close();trackAnalytics(selectedHouse?"house_pdf_export":"full_pdf_export");}
   $("fileInput").addEventListener("change",e=>loadFile(e.target.files[0])); const dz=$("dropzone"); ["dragenter","dragover"].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.add("drag")})); ["dragleave","drop"].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.remove("drag")})); dz.addEventListener("drop",e=>loadFile(e.dataTransfer.files[0]));
   $("applyMarks").addEventListener("click",()=>{const v=$("sameMarks").value;if(Number(v)>0)document.querySelectorAll(".max-mark").forEach(i=>i.value=v);else message("Enter a valid common maximum mark first.")}); $("generateBtn").addEventListener("click",generate); $("downloadBtn").addEventListener("click",downloadExcel); $("pdfBtn").addEventListener("click",()=>downloadPdf()); $("houseTables").addEventListener("click",event=>{const button=event.target.closest(".house-pdf");if(button)downloadPdf(Object.entries(state.houses)[Number(button.dataset.houseIndex)]);});
 })(typeof globalThis !== "undefined" ? globalThis : this);
