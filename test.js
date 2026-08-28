@@ -24,6 +24,17 @@ require("./vendor/acadpulse-xlsx.js");
   const housePositions=Object.keys(houses).map(house=>reportRows.findIndex(row=>row[0]===house));
   assert.ok(housePositions.every((position,index)=>position>=0&&(index===0||position>housePositions[index-1])));
   const summaryPosition=reportRows.findIndex(row=>row[0]==="HOUSE SUMMARY"); assert.ok(summaryPosition>housePositions.at(-1));
+  const developerCredit="Developed by Shahbaaz Ahmed | shahbaaz.education@gmail.com";
+  assert.equal(reportRows.at(-1)[0],developerCredit);
+  const lastColumn=reference.subjects.length*2+4, columnName=index=>{let name="";for(let n=index+1;n;n=Math.floor((n-1)/26))name=String.fromCharCode((n-1)%26+65)+name;return name;};
+  const cellRef=(row,column)=>`${columnName(column)}${row+1}`;
+  for(const housePosition of housePositions){
+    const nextBlank=reportRows.findIndex((row,index)=>index>housePosition&&!row.length);
+    for(let row=housePosition+1;row<nextBlank;row++)for(let column=0;column<=lastColumn;column++)assert.ok(report.Sheets.Scoreboard["!styles"][cellRef(row,column)],`Missing table style at ${cellRef(row,column)}`);
+  }
+  const creditPosition=reportRows.findIndex(row=>row[0]===developerCredit);
+  for(let row=summaryPosition+1;row<creditPosition-1;row++)for(let column=0;column<=lastColumn;column++)assert.ok(report.Sheets.Scoreboard["!styles"][cellRef(row,column)],`Missing summary style at ${cellRef(row,column)}`);
+  assert.equal(report.Sheets.Scoreboard["!styles"][cellRef(creditPosition-1,0)],undefined);
   const firstHeader=reportRows.find(row=>row[0]==="Roll No"); assert.equal(firstHeader[3],"Science"); assert.equal(firstHeader[4],"");
   const firstSubheader=reportRows[reportRows.indexOf(firstHeader)+1]; assert.deepEqual(firstSubheader.slice(3,5),["Percentage","Points"]);
   const faithStudent=houses["House of Faith"][0]; assert.equal(faithStudent.admission,8523); assert.equal(round2(faithStudent.results[3].percentage),51.25);
@@ -38,5 +49,9 @@ require("./vendor/acadpulse-xlsx.js");
   globalThis.XLSX.utils.book_append_sheet(workbook, globalThis.XLSX.utils.aoa_to_sheet([["House","Total"],["House of Faith",42]]), "Summary");
   const roundTrip = await globalThis.XLSX.read(await globalThis.XLSX.write(workbook));
   assert.deepEqual(globalThis.XLSX.utils.sheet_to_json(roundTrip.Sheets.Summary,{header:1,defval:"",raw:true}), [["House","Total"],["House of Faith",42]]);
+  const appSource=fs.readFileSync("script.js","utf8");
+  assert.match(appSource,/@page\{size:landscape;margin:0\}/); assert.doesNotMatch(appSource,/counter\(page\)|AcadPulse · Page/);
+  assert.match(appSource,/footer class="print-footer">\$\{DEVELOPER_CREDIT\}/);
+  const vendorSource=fs.readFileSync("vendor/acadpulse-xlsx.js","utf8"); assert.match(vendorSource,/return s\?`<c r="\$\{ref\}"\$\{style\}\/>`/);
   console.log("All calculation and workbook-processing tests passed.");
 })().catch(error => { console.error(error); process.exitCode=1; });
