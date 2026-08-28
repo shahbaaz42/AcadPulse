@@ -30,6 +30,22 @@ test("missing required metadata and empty data report clear errors",()=>{
   assert.throws(()=>core.detectResultStructure([["Name","Class","Gender","Math"]]),/no student rows/i);
 });
 test("configuration rejects invalid maximum and pass marks",()=>{assert.throws(()=>core.validateRules(0,33),/Maximum/);assert.throws(()=>core.validateRules(50,60),/Pass Mark/)});
+test("numeric zero and string zero remain valid absent marks",()=>{
+  const zeroRows=[["Student Name","Math","Class","Gender"],["Numeric zero",0,"X A","BOY"],["String zero","0","X A","GIRL"]];
+  const zeroStructure=core.detectResultStructure(zeroRows), zeroStudents=core.deriveStudents(zeroStructure,{maximumMarks:100,passMark:33});
+  assert.deepStrictEqual(zeroStudents.map(student=>student.marks[0]),[0,0]);
+  assert.deepStrictEqual(zeroStudents.map(student=>student.result),["ABSENT","ABSENT"]);
+});
+test("whitespace-only marks are rejected instead of becoming zero",()=>{
+  const whitespaceRows=[["Student Name","Math","Class","Gender"],["Valid",45,"X A","BOY"],["Blank","   \t ","X A","GIRL"]];
+  const whitespaceStructure=core.detectResultStructure(whitespaceRows);
+  assert.throws(()=>core.deriveStudents(whitespaceStructure,{maximumMarks:100,passMark:33}),/Invalid mark for Math.*Blank/);
+});
+test("whitespace around a valid mark is trimmed before conversion",()=>{
+  const paddedRows=[["Student Name","Math","Class","Gender"],["Padded"," 45 ","X A","BOY"]];
+  const paddedStructure=core.detectResultStructure(paddedRows), [paddedStudent]=core.deriveStudents(paddedStructure,{maximumMarks:100,passMark:33});
+  assert.strictEqual(paddedStudent.marks[0],45); assert.strictEqual(paddedStudent.totalMarks,45);
+});
 
 (async function integration() {
   function deferred() { let resolve, reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no}); return {promise,resolve,reject}; }

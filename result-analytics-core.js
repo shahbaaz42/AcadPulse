@@ -35,7 +35,8 @@
     const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) =>
       name && !metadata.has(normalizeHeader(name)) && dataRows.some(row => {
         const value = row[index];
-        return value !== "" && value != null && typeof value !== "boolean" && Number.isFinite(Number(value));
+        const normalized = typeof value === "string" ? value.trim() : value;
+        return normalized !== "" && normalized != null && typeof normalized !== "boolean" && Number.isFinite(Number(normalized));
       })
     );
     if (!subjects.length) throw new Error("No numeric subject columns were detected.");
@@ -54,10 +55,11 @@
     return structure.dataRows.map((row, sourceIndex) => {
       const marks = structure.subjects.map(subject => {
         const raw = row[subject.index];
-        if (raw === "" || raw == null || typeof raw === "boolean" || !Number.isFinite(Number(raw))) {
+        const normalized = typeof raw === "string" ? raw.trim() : raw;
+        if (normalized === "" || normalized == null || typeof normalized === "boolean" || !Number.isFinite(Number(normalized))) {
           throw new Error(`Invalid mark for ${subject.name} in the row for ${row[structure.columns.name]}.`);
         }
-        return Number(raw);
+        return Number(normalized);
       });
       const totalMarks = marks.reduce((sum, mark) => sum + mark, 0);
       const failedSubjects = marks.filter(mark => mark < rules.passMark).length; // Includes zero, matching Power Query.
