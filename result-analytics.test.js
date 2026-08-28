@@ -32,6 +32,31 @@ test("missing required metadata and empty data report clear errors",()=>{
 test("configuration rejects invalid maximum and pass marks",()=>{assert.throws(()=>core.validateRules(0,33),/Maximum/);assert.throws(()=>core.validateRules(50,60),/Pass Mark/)});
 
 (async function integration() {
+  function deferred() { let resolve, reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no}); return {promise,resolve,reject}; }
+  function guardedLoader(guard, application, analyticsEvents, name, work) {
+    const loadId=guard.begin();
+    return work.then(value=>{
+      if(!guard.isCurrent(loadId)) return;
+      application.structure=value; application.summary=name; application.controlsEnabled=true; application.message=`${name} loaded`; analyticsEvents.push("result_workbook_uploaded");
+    }).catch(()=>{
+      if(!guard.isCurrent(loadId)) return;
+      application.message=`${name} failed`; analyticsEvents.push("result_analytics_error");
+    });
+  }
+  const guard=core.createLatestLoadGuard(), application={}, analyticsEvents=[], workbookA=deferred(), workbookB=deferred();
+  const loadA=guardedLoader(guard,application,analyticsEvents,"A",workbookA.promise);
+  const loadB=guardedLoader(guard,application,analyticsEvents,"B",workbookB.promise);
+  workbookB.resolve({workbook:"B"}); await loadB; workbookA.resolve({workbook:"A"}); await loadA;
+  test("a stale workbook completion cannot overwrite the newer selection",()=>{
+    assert.deepStrictEqual(application,{structure:{workbook:"B"},summary:"B",controlsEnabled:true,message:"B loaded"});
+    assert.deepStrictEqual(analyticsEvents,["result_workbook_uploaded"]);
+  });
+  const staleFailure=deferred(), newest=deferred(), failureApplication={}, failureEvents=[], staleLoad=guardedLoader(guard,failureApplication,failureEvents,"stale",staleFailure.promise), newestLoad=guardedLoader(guard,failureApplication,failureEvents,"newest",newest.promise);
+  newest.resolve({workbook:"newest"}); await newestLoad; staleFailure.reject(new Error("stale error")); await staleLoad;
+  test("a stale workbook failure cannot overwrite UI or emit error analytics",()=>{
+    assert.deepStrictEqual(failureApplication,{structure:{workbook:"newest"},summary:"newest",controlsEnabled:true,message:"newest loaded"});
+    assert.deepStrictEqual(failureEvents,["result_workbook_uploaded"]);
+  });
   const bytes=fs.readFileSync("reference/X_Pre_Mid_Term_26_27.xlsx");
   const buffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
   const workbook=await global.XLSX.read(buffer,{type:"array"});

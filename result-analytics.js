@@ -2,7 +2,7 @@
   "use strict";
   if (typeof document === "undefined") return;
   const core = window.AcadPulseResultCore;
-  const state = { structure: null, students: [], filename: "", configuration: null };
+  const state = { structure: null, students: [], filename: "", configuration: null, loadGuard: core.createLatestLoadGuard() };
   const $ = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[character]));
   const format = value => Number(Number(value).toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -18,23 +18,33 @@
   }));
 
   async function loadWorkbook(file) {
+    const loadId = state.loadGuard.begin();
+    state.structure = null; state.students = []; state.filename = "";
+    $("analyticsDashboard").hidden = true; $("analyticsFileSummary").hidden = true;
+    $("analyticsConfigCard").classList.add("locked"); $("analyticsGenerate").disabled = true;
     try {
-      $("analyticsDashboard").hidden = true;
       if (!file || !file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Invalid workbook. Choose an .xlsx result workbook.");
       if (file.size > 10 * 1024 * 1024) throw new Error("The workbook exceeds the 10 MB limit.");
       if (!window.XLSX?.read) throw new Error("The local XLSX reader failed to initialize. Reload the page and try again.");
-      const workbook = await XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const fileBytes = await file.arrayBuffer();
+      if (!state.loadGuard.isCurrent(loadId)) return;
+      const workbook = await XLSX.read(fileBytes, { type: "array" });
+      if (!state.loadGuard.isCurrent(loadId)) return;
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      state.structure = core.detectResultStructure(XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true }));
-      state.filename = file.name;
-      const classes = new Set(state.structure.dataRows.map(row => String(row[state.structure.columns.className] ?? "").trim()).filter(Boolean));
-      const genders = new Set(state.structure.dataRows.map(row => String(row[state.structure.columns.gender] ?? "").trim()).filter(Boolean));
+      const structure = core.detectResultStructure(XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true }));
+      const classes = new Set(structure.dataRows.map(row => String(row[structure.columns.className] ?? "").trim()).filter(Boolean));
+      const genders = new Set(structure.dataRows.map(row => String(row[structure.columns.gender] ?? "").trim()).filter(Boolean));
       if (!classes.size) throw new Error("Missing Class. Student rows must contain Class values.");
       if (!genders.size) throw new Error("Missing Gender. Student rows must contain Gender values.");
-      $("analyticsFileSummary").innerHTML = `<div class="file-row"><div><strong>✓ ${escapeHtml(file.name)}</strong><small>${state.structure.dataRows.length} students · ${state.structure.subjects.length} dynamically detected subjects</small></div></div><div class="detected">${state.structure.subjects.map(subject => `<span class="tag">${escapeHtml(subject.name)}</span>`).join("")}</div>`;
+      if (!state.loadGuard.isCurrent(loadId)) return;
+      state.structure = structure; state.filename = file.name;
+      $("analyticsFileSummary").innerHTML = `<div class="file-row"><div><strong>✓ ${escapeHtml(file.name)}</strong><small>${structure.dataRows.length} students · ${structure.subjects.length} dynamically detected subjects</small></div></div><div class="detected">${structure.subjects.map(subject => `<span class="tag">${escapeHtml(subject.name)}</span>`).join("")}</div>`;
       $("analyticsFileSummary").hidden = false; $("analyticsConfigCard").classList.remove("locked"); $("analyticsGenerate").disabled = false;
       message("Workbook read locally. Confirm the exam rules, then generate the dashboard.", true); track("result_workbook_uploaded");
-    } catch (error) { state.structure = null; $("analyticsGenerate").disabled = true; message(error.message); track("result_analytics_error"); }
+    } catch (error) {
+      if (!state.loadGuard.isCurrent(loadId)) return;
+      state.structure = null; $("analyticsGenerate").disabled = true; message(error.message); track("result_analytics_error");
+    }
   }
 
   function optionList(values) { return `<option value="All">All</option>${[...new Set(values.filter(Boolean))].sort((a,b) => a.localeCompare(b)).map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`; }

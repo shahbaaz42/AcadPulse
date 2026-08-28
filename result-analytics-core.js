@@ -14,6 +14,14 @@
   const columnFor = (headers, aliases) => headers.findIndex(header => aliases.includes(normalizeHeader(header)));
   const round2 = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+  function createLatestLoadGuard() {
+    let latestLoadId = 0;
+    return Object.freeze({
+      begin: () => ++latestLoadId,
+      isCurrent: loadId => loadId === latestLoadId
+    });
+  }
+
   function detectResultStructure(rows) {
     if (!Array.isArray(rows) || !rows.length) throw new Error("The workbook is empty. Add a header row and student results.");
     const headerIndex = rows.findIndex(row => Array.isArray(row) && row.some(cell => ALIASES.name.includes(normalizeHeader(cell))));
@@ -123,7 +131,7 @@
     };
   }
 
-  const api = { ALIASES, normalizeHeader, detectResultStructure, validateRules, deriveStudents, filterStudents, percentageBand, rankStudents, summarize, round2 };
+  const api = { ALIASES, normalizeHeader, createLatestLoadGuard, detectResultStructure, validateRules, deriveStudents, filterStudents, percentageBand, rankStudents, summarize, round2 };
   if (typeof module !== "undefined") module.exports = api;
   root.AcadPulseResultCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
