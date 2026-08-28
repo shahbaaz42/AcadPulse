@@ -9,12 +9,22 @@ const reportDetails={className:"X",section:"BC",exam:"Annual Exam"};
 assert.equal(buildReportTitle(reportDetails),"X_BC_Annual_Exam_Scoreboard");
 assert.equal(buildReportTitle(reportDetails,true),"X_BC_Annual_Exam_House_Scoreboard");
 assert.equal(analytics.MEASUREMENT_ID,"G-WNEYWX5WTY");
-assert.deepEqual(analytics.EVENT_NAMES,["workbook_uploaded","scoreboard_generated","excel_download","full_pdf_export","house_pdf_export","generation_error"]);
+assert.deepEqual(analytics.EVENT_NAMES,["workbook_uploaded","scoreboard_generated","excel_download","full_pdf_export","house_pdf_export","generation_error","result_workbook_uploaded","result_dashboard_generated","result_analytics_error"]);
 delete globalThis.gtag; assert.equal(analytics.trackEvent("workbook_uploaded"),false);
 const analyticsCalls=[]; globalThis.gtag=(...args)=>analyticsCalls.push(args);
 assert.equal(analytics.trackEvent("workbook_uploaded",{filename:"students.xlsx",studentName:"Asha"}),true);
 assert.deepEqual(analyticsCalls,[["event","workbook_uploaded"]]);
-assert.equal(analytics.trackEvent("not_allowed",{studentName:"Asha"}),false); assert.equal(analyticsCalls.length,1);
+for(const eventName of ["result_workbook_uploaded","result_dashboard_generated","result_analytics_error"]){
+  assert.equal(analytics.EVENT_NAMES.includes(eventName),true);
+  assert.equal(analytics.trackEvent(eventName,{filename:"results.xlsx",class:"X BC",gender:"BOY",count:215,error:"private"}),true);
+}
+assert.deepEqual(analyticsCalls,[
+  ["event","workbook_uploaded"],
+  ["event","result_workbook_uploaded"],
+  ["event","result_dashboard_generated"],
+  ["event","result_analytics_error"]
+]);
+assert.equal(analytics.trackEvent("not_allowed",{studentName:"Asha"}),false); assert.equal(analyticsCalls.length,4);
 globalThis.gtag=()=>{throw new Error("blocked")}; assert.equal(analytics.trackEvent("generation_error"),false); delete globalThis.gtag;
 const htmlSource=fs.readFileSync("index.html","utf8");
 assert.match(htmlSource,/googletagmanager\.com\/gtag\/js\?id=G-WNEYWX5WTY/); assert.match(htmlSource,/gtag\('config', 'G-WNEYWX5WTY'/);
