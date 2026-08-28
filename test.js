@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const analytics = require("./analytics.js");
 const {pointsForPercentage, percentageForMark, normalizeHouse, detectStructure, buildScoreboard, resetScoreboardState, buildReportTitle, buildConsolidatedWorkbook, round2} = require("./script.js");
 assert.equal(percentageForMark(40,80),50); assert.equal(percentageForMark(40,50),80); assert.equal(percentageForMark("",80),null); assert.equal(percentageForMark("Absent",80),null);
 [[95,5],[94.99,3],[81,3],[80.99,2],[61,2],[60.99,0],[null,null]].forEach(([p,v])=>assert.equal(pointsForPercentage(p),v));
@@ -7,6 +8,16 @@ assert.equal(normalizeHouse(" BLUE "),"House of Blue"); assert.equal(normalizeHo
 const reportDetails={className:"X",section:"BC",exam:"Annual Exam"};
 assert.equal(buildReportTitle(reportDetails),"X_BC_Annual_Exam_Scoreboard");
 assert.equal(buildReportTitle(reportDetails,true),"X_BC_Annual_Exam_House_Scoreboard");
+assert.equal(analytics.MEASUREMENT_ID,"G-WNEYWX5WTY");
+assert.deepEqual(analytics.EVENT_NAMES,["workbook_uploaded","scoreboard_generated","excel_download","full_pdf_export","house_pdf_export","generation_error"]);
+delete globalThis.gtag; assert.equal(analytics.trackEvent("workbook_uploaded"),false);
+const analyticsCalls=[]; globalThis.gtag=(...args)=>analyticsCalls.push(args);
+assert.equal(analytics.trackEvent("workbook_uploaded",{filename:"students.xlsx",studentName:"Asha"}),true);
+assert.deepEqual(analyticsCalls,[["event","workbook_uploaded"]]);
+assert.equal(analytics.trackEvent("not_allowed",{studentName:"Asha"}),false); assert.equal(analyticsCalls.length,1);
+globalThis.gtag=()=>{throw new Error("blocked")}; assert.equal(analytics.trackEvent("generation_error"),false); delete globalThis.gtag;
+const htmlSource=fs.readFileSync("index.html","utf8");
+assert.match(htmlSource,/googletagmanager\.com\/gtag\/js\?id=G-WNEYWX5WTY/); assert.match(htmlSource,/gtag\('config', 'G-WNEYWX5WTY'/);
 const rows=[["ROLLNO","ADMNO","STUDENT NAME","Science","Maths","Gender","HOUSE"],[1,100,"Asha",40,45,"F","BLUE"],[2,101,"Ben","Absent",50,"M","Blue House"]];
 const structure=detectStructure(rows); assert.deepEqual(structure.subjects.map(s=>s.name),["Science","Maths"]); const result=buildScoreboard(structure,{Science:80,Maths:50}); assert.equal(Object.keys(result).length,1); assert.equal(result["House of Blue"][0].total,3); assert.equal(result["House of Blue"][1].results[0].points,null);
 const admnRows=[["ROLLNO","ADMN NO","STUDENT NAME","Science","HOUSE"],[1,7654,"Asha",40,"Blue"]];
