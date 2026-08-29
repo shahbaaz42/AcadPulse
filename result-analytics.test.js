@@ -94,6 +94,7 @@ test("invalid mark errors identify the subject, student, and actual Excel row",(
 });
 test("generation invalidates stale dashboard output without clearing the loaded workbook",()=>{
   const controllerSource=fs.readFileSync("result-analytics.js","utf8");
+  assert.match(controllerSource,/className\s*=\s*`message generate-message\$\{success \? " success" : ""\}`/);
   const invalidator=controllerSource.match(/function invalidateGeneratedDashboard\(\)\s*\{([^}]*)\}/);
   assert.ok(invalidator); assert.match(invalidator[1],/state\.students\s*=\s*\[\]/); assert.match(invalidator[1],/\$\("analyticsDashboard"\)\.hidden\s*=\s*true/);
   assert.doesNotMatch(invalidator[1],/state\.structure\s*=/);

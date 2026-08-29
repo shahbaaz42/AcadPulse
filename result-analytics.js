@@ -6,7 +6,7 @@
   const $ = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[character]));
   const format = value => Number(Number(value).toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 });
-  const message = (text, success = false) => { const box = $("analyticsMessage"); box.textContent = text; box.className = `message${success ? " success" : ""}`; box.hidden = false; };
+  const message = (text, success = false) => { const box = $("analyticsMessage"); box.textContent = text; box.className = `message generate-message${success ? " success" : ""}`; box.hidden = false; };
   const track = eventName => { try { window.AcadPulseAnalytics?.trackEvent(eventName); } catch (_) { /* Telemetry cannot interrupt local processing. */ } };
 
   document.querySelectorAll(".module-tab").forEach(button => button.addEventListener("click", () => {
