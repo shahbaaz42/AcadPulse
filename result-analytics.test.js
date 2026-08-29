@@ -57,6 +57,19 @@ test("negative numeric and numeric-string marks are rejected before calculations
     assert.throws(()=>core.deriveStudents(negativeStructure,{maximumMarks:100,passMark:33}),/Invalid mark for Math.*Negative/);
   }
 });
+test("marks at the configured maximum remain valid after string normalization",()=>{
+  const maximumRows=[["Student Name","Math","Class","Gender"],["Numeric maximum",50,"X A","BOY"],["String maximum","50","X A","GIRL"],["Padded maximum"," 50 ","X B","BOY"]];
+  const maximumStructure=core.detectResultStructure(maximumRows), maximumStudents=core.deriveStudents(maximumStructure,{maximumMarks:50,passMark:20});
+  assert.deepStrictEqual(maximumStudents.map(student=>student.marks[0]),[50,50,50]);
+  assert.deepStrictEqual(maximumStudents.map(student=>student.percentage),[100,100,100]);
+});
+test("numeric and string marks above the configured maximum are rejected",()=>{
+  for(const mark of [50.01,"51"]){
+    const excessiveRows=[["Student Name","Math","Class","Gender"],["Excessive",mark,"X A","BOY"]];
+    const excessiveStructure=core.detectResultStructure(excessiveRows);
+    assert.throws(()=>core.deriveStudents(excessiveStructure,{maximumMarks:50,passMark:20}),/Invalid mark for Math.*Excessive/);
+  }
+});
 test("generation invalidates stale dashboard output without clearing the loaded workbook",()=>{
   const controllerSource=fs.readFileSync("result-analytics.js","utf8");
   const invalidator=controllerSource.match(/function invalidateGeneratedDashboard\(\)\s*\{([^}]*)\}/);

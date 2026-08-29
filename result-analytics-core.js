@@ -56,10 +56,11 @@
       const marks = structure.subjects.map(subject => {
         const raw = row[subject.index];
         const normalized = typeof raw === "string" ? raw.trim() : raw;
-        if (normalized === "" || normalized == null || typeof normalized === "boolean" || !Number.isFinite(Number(normalized)) || Number(normalized) < 0) {
+        const mark = Number(normalized);
+        if (normalized === "" || normalized == null || typeof normalized === "boolean" || !Number.isFinite(mark) || mark < 0 || mark > rules.maximumMarks) {
           throw new Error(`Invalid mark for ${subject.name} in the row for ${row[structure.columns.name]}.`);
         }
-        return Number(normalized);
+        return mark;
       });
       const totalMarks = marks.reduce((sum, mark) => sum + mark, 0);
       const failedSubjects = marks.filter(mark => mark < rules.passMark).length; // Includes zero, matching Power Query.
