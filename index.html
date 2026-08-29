@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="result-analytics.css">
   <!-- Google tag (gtag.js): usage telemetry only; workbook data remains local. -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-WNEYWX5WTY"></script>
   <script>
@@ -23,10 +24,13 @@
 <body>
   <header class="topbar">
     <a class="brand" href="#" aria-label="AcadPulse home"><span class="brand-mark">A</span><span><strong>AcadPulse</strong><small>Academic Intelligence Platform</small></span></a>
-    <span class="module-pill"><i></i> Scoreboard Generator</span>
+    <nav class="module-switcher" aria-label="AcadPulse modules">
+      <button class="module-tab active" data-module="scoreboard">Scoreboard Generator</button>
+      <button class="module-tab" data-module="analytics">Result Analytics</button>
+    </nav>
   </header>
 
-  <main>
+  <main id="scoreboardModule" class="module-view">
     <section class="hero">
       <div><span class="eyebrow">ACADEMIC PERFORMANCE · V1</span><h1>Turn marks into a<br><em>house scoreboard.</em></h1><p>Upload your consolidation workbook, set the exam details and generate a polished, house-wise scoreboard in minutes.</p></div>
       <div class="privacy-card"><span>⌁</span><div><strong>Private by design</strong><p>Your workbook stays in this browser. Student data is never sent to a server.</p></div></div>
@@ -72,9 +76,62 @@
       <div id="houseTables"></div>
     </section>
   </main>
+  <main id="analyticsModule" class="module-view" hidden>
+    <section class="analytics-hero">
+      <div><span class="eyebrow">RESULT ANALYTICS · PHASE 1</span><h1>See the whole result story.</h1><p>Upload a result workbook and build a private, filterable Page 1 dashboard entirely in your browser.</p></div>
+      <div class="privacy-card"><span>⌁</span><div><strong>Local and private</strong><p>Names, admission numbers and marks never leave this device.</p></div></div>
+    </section>
+    <nav class="steps analytics-steps" aria-label="Result analytics progress">
+      <span class="active"><b>1</b> Upload Result Workbook</span><i></i><span><b>2</b> Exam Configuration</span><i></i><span><b>3</b> Generate Dashboard</span><i></i><span><b>4</b> Interactive Dashboard</span>
+    </nav>
+    <div id="analyticsMessage" class="message" role="alert" hidden></div>
+    <section class="analytics-setup">
+      <article class="card">
+        <div class="section-heading"><span class="number">01</span><div><h2>Upload Result Workbook</h2><p>Student metadata and subject marks on the first worksheet</p></div></div>
+        <label class="dropzone" id="analyticsDropzone">
+          <input id="analyticsFileInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          <span class="upload-icon">⇧</span><strong>Drop your result workbook here</strong><p>or <u>browse from your computer</u></p><small>XLSX · PROCESSED LOCALLY · MAXIMUM 10 MB</small>
+        </label>
+        <div id="analyticsFileSummary" class="file-summary" hidden></div>
+      </article>
+      <article class="card locked" id="analyticsConfigCard">
+        <div class="section-heading"><span class="number">02</span><div><h2>Exam Configuration</h2><p>Rules apply to every detected subject in Phase 1</p></div></div>
+        <div class="analytics-config-grid">
+          <label>Exam Name<input id="analyticsExamName" placeholder="e.g. Pre Mid Term Exam"></label>
+          <label>Academic Year<input id="analyticsYear" placeholder="e.g. 2026–27"></label>
+          <label>Maximum Marks<input id="analyticsMaximum" type="number" min="0.01" step="0.01" value="100"></label>
+          <label>Pass Mark<input id="analyticsPassMark" type="number" min="0.01" step="0.01" value="33"></label>
+        </div>
+      </article>
+      <button id="analyticsGenerate" class="generate" disabled><span>Generate Interactive Dashboard</span><b>→</b></button>
+    </section>
+
+    <section id="analyticsDashboard" class="analytics-dashboard" hidden>
+      <div class="dashboard-heading"><div><span class="eyebrow">PAGE 1 · OVERALL SUMMARY</span><h2 id="dashboardTitle">Result Analytics Dashboard</h2><p id="dashboardSubtitle"></p></div><span class="local-badge">● Browser-local analysis</span></div>
+      <div class="dashboard-filters">
+        <label>Class<select id="analyticsClassFilter"><option>All</option></select></label>
+        <label>Gender<select id="analyticsGenderFilter"><option>All</option></select></label>
+        <button id="analyticsResetFilters" class="filter-reset" type="button">Reset filters</button>
+        <span id="filterCount" aria-live="polite"></span>
+      </div>
+      <div id="analyticsEmpty" class="message" hidden>No students match these filters.</div>
+      <div id="kpiGrid" class="kpi-grid"></div>
+      <div class="visual-grid">
+        <article class="dashboard-panel subject-panel"><h3>Avg Subject Mark <small>present only</small></h3><div id="subjectChart" class="chart" role="img"></div></article>
+        <article class="dashboard-panel"><h3>Result Distribution</h3><div id="resultChart" class="chart" role="img"></div></article>
+        <article class="dashboard-panel range-panel"><h3>Overall Percentage Distribution</h3><div id="rangeChart" class="chart" role="img"></div></article>
+      </div>
+      <div class="ranking-grid">
+        <article class="dashboard-panel"><h3>Top 10 Students</h3><div class="table-scroll"><table id="topStudents"></table></div></article>
+        <article class="dashboard-panel"><h3>Students Requiring Maximum Support</h3><div class="table-scroll"><table id="supportStudents"></table></div></article>
+      </div>
+    </section>
+  </main>
   <footer>AcadPulse <span>·</span> Academic Intelligence Platform <small>Scoreboard Generator V1</small></footer>
   <script src="vendor/acadpulse-xlsx.js"></script>
   <script src="analytics.js"></script>
   <script src="script.js"></script>
+  <script src="result-analytics-core.js"></script>
+  <script src="result-analytics.js"></script>
 </body>
 </html>

@@ -8,7 +8,10 @@
     "excel_download",
     "full_pdf_export",
     "house_pdf_export",
-    "generation_error"
+    "generation_error",
+    "result_workbook_uploaded",
+    "result_dashboard_generated",
+    "result_analytics_error"
   ]);
   const allowedEvents = new Set(EVENT_NAMES);
 
