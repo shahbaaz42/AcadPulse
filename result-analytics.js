@@ -97,7 +97,7 @@
 
   $("analyticsFileInput").addEventListener("change", event => loadWorkbook(event.target.files[0]));
   ["dragenter","dragover"].forEach(name=>$("analyticsDropzone").addEventListener(name,event=>{event.preventDefault();$("analyticsDropzone").classList.add("drag");}));
-  ["dragleave","drop"].forEach(name=>$("analyticsDropzone").addEventListener(name,event=>{event.preventDefault();$("analyticsDropzone").classList.remove("drag");if(name==="drop")loadWorkbook(event.dataTransfer.files[0]);}));
+  ["dragleave","drop"].forEach(name=>$("analyticsDropzone").addEventListener(name,event=>{event.preventDefault();$("analyticsDropzone").classList.remove("drag");if(name==="drop"){$("analyticsFileInput").value="";loadWorkbook(event.dataTransfer.files[0]);}}));
   $("analyticsGenerate").addEventListener("click",generate); $("analyticsClassFilter").addEventListener("change",render); $("analyticsGenderFilter").addEventListener("change",render);
   $("analyticsResetFilters").addEventListener("click",()=>{$("analyticsClassFilter").value="All";$("analyticsGenderFilter").value="All";render();});
 })();

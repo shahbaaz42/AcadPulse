@@ -32,6 +32,11 @@
     if (columns.gender < 0) throw new Error("Missing Gender. Add a Gender column to the workbook.");
     const dataRows = rows.slice(headerIndex + 1).filter(row => String(row?.[columns.name] ?? "").trim());
     if (!dataRows.length) throw new Error("The workbook contains no student rows.");
+    for (const row of dataRows) {
+      const studentName = String(row[columns.name] ?? "").trim();
+      if (!String(row[columns.className] ?? "").trim()) throw new Error(`Missing Class value for student "${studentName}".`);
+      if (!String(row[columns.gender] ?? "").trim()) throw new Error(`Missing Gender value for student "${studentName}".`);
+    }
     const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) =>
       name && !metadata.has(normalizeHeader(name)) && dataRows.some(row => {
         const value = row[index];

@@ -29,6 +29,23 @@ test("missing required metadata and empty data report clear errors",()=>{
   assert.throws(()=>core.detectResultStructure([["Name","Math","Gender"],["A",2,"GIRL"]]),/Missing Class/);
   assert.throws(()=>core.detectResultStructure([["Name","Class","Gender","Math"]]),/no student rows/i);
 });
+test("every included student row must have a populated Class",()=>{
+  const missingClassRows=[["Student Name","Math","Class","Gender"],["Complete",45,"X A","BOY"],["Missing",55,"","GIRL"]];
+  assert.throws(()=>core.detectResultStructure(missingClassRows),/Missing Class value for student "Missing"/);
+  const whitespaceClassRows=[["Student Name","Math","Class","Gender"],["Whitespace",45," \t ","BOY"]];
+  assert.throws(()=>core.detectResultStructure(whitespaceClassRows),/Missing Class value/);
+});
+test("every included student row must have a populated Gender",()=>{
+  const missingGenderRows=[["Student Name","Math","Class","Gender"],["Complete",45,"X A","BOY"],["Missing",55,"X B",""]];
+  assert.throws(()=>core.detectResultStructure(missingGenderRows),/Missing Gender value for student "Missing"/);
+  const whitespaceGenderRows=[["Student Name","Math","Class","Gender"],["Whitespace",45,"X A"," \t "]];
+  assert.throws(()=>core.detectResultStructure(whitespaceGenderRows),/Missing Gender value/);
+});
+test("fully populated Class and Gender values are accepted and trimmed during derivation",()=>{
+  const completeRows=[["Student Name","Math","Class","Gender"],["Complete",45," X A "," BOY "]];
+  const completeStructure=core.detectResultStructure(completeRows), [completeStudent]=core.deriveStudents(completeStructure,{maximumMarks:100,passMark:33});
+  assert.strictEqual(completeStudent.className,"X A"); assert.strictEqual(completeStudent.gender,"BOY");
+});
 test("configuration rejects invalid maximum and pass marks",()=>{assert.throws(()=>core.validateRules(0,33),/Maximum/);assert.throws(()=>core.validateRules(50,60),/Pass Mark/)});
 test("mobile stacked topbar can grow beyond the desktop fixed height",()=>{
   const responsiveCss=fs.readFileSync("result-analytics.css","utf8");
@@ -76,6 +93,11 @@ test("generation invalidates stale dashboard output without clearing the loaded 
   assert.ok(invalidator); assert.match(invalidator[1],/state\.students\s*=\s*\[\]/); assert.match(invalidator[1],/\$\("analyticsDashboard"\)\.hidden\s*=\s*true/);
   assert.doesNotMatch(invalidator[1],/state\.structure\s*=/);
   assert.match(controllerSource,/function generate\(\)\s*\{\s*invalidateGeneratedDashboard\(\);\s*try\s*\{/);
+});
+test("dropping a workbook clears the picker so its previous file can be reselected",()=>{
+  const controllerSource=fs.readFileSync("result-analytics.js","utf8");
+  assert.match(controllerSource,/if\(name==="drop"\)\{\$\("analyticsFileInput"\)\.value="";loadWorkbook\(event\.dataTransfer\.files\[0\]\);\}/);
+  assert.match(controllerSource,/\$\("analyticsFileInput"\)\.addEventListener\("change", event => loadWorkbook\(event\.target\.files\[0\]\)\)/);
 });
 
 (async function integration() {
