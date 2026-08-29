@@ -56,7 +56,7 @@
       const marks = structure.subjects.map(subject => {
         const raw = row[subject.index];
         const normalized = typeof raw === "string" ? raw.trim() : raw;
-        if (normalized === "" || normalized == null || typeof normalized === "boolean" || !Number.isFinite(Number(normalized))) {
+        if (normalized === "" || normalized == null || typeof normalized === "boolean" || !Number.isFinite(Number(normalized)) || Number(normalized) < 0) {
           throw new Error(`Invalid mark for ${subject.name} in the row for ${row[structure.columns.name]}.`);
         }
         return Number(normalized);

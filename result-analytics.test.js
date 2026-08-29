@@ -50,6 +50,20 @@ test("whitespace around a valid mark is trimmed before conversion",()=>{
   const paddedStructure=core.detectResultStructure(paddedRows), [paddedStudent]=core.deriveStudents(paddedStructure,{maximumMarks:100,passMark:33});
   assert.strictEqual(paddedStudent.marks[0],45); assert.strictEqual(paddedStudent.totalMarks,45);
 });
+test("negative numeric and numeric-string marks are rejected before calculations",()=>{
+  for(const mark of [-1,"-2.5"]){
+    const negativeRows=[["Student Name","Math","Class","Gender"],["Negative",mark,"X A","BOY"]];
+    const negativeStructure=core.detectResultStructure(negativeRows);
+    assert.throws(()=>core.deriveStudents(negativeStructure,{maximumMarks:100,passMark:33}),/Invalid mark for Math.*Negative/);
+  }
+});
+test("generation invalidates stale dashboard output without clearing the loaded workbook",()=>{
+  const controllerSource=fs.readFileSync("result-analytics.js","utf8");
+  const invalidator=controllerSource.match(/function invalidateGeneratedDashboard\(\)\s*\{([^}]*)\}/);
+  assert.ok(invalidator); assert.match(invalidator[1],/state\.students\s*=\s*\[\]/); assert.match(invalidator[1],/\$\("analyticsDashboard"\)\.hidden\s*=\s*true/);
+  assert.doesNotMatch(invalidator[1],/state\.structure\s*=/);
+  assert.match(controllerSource,/function generate\(\)\s*\{\s*invalidateGeneratedDashboard\(\);\s*try\s*\{/);
+});
 
 (async function integration() {
   function deferred() { let resolve, reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no}); return {promise,resolve,reject}; }

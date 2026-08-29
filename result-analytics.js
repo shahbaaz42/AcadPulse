@@ -48,7 +48,12 @@
   }
 
   function optionList(values) { return `<option value="All">All</option>${[...new Set(values.filter(Boolean))].sort((a,b) => a.localeCompare(b)).map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`; }
+  function invalidateGeneratedDashboard() {
+    state.students = [];
+    $("analyticsDashboard").hidden = true;
+  }
   function generate() {
+    invalidateGeneratedDashboard();
     try {
       if (!state.structure) throw new Error("Upload a valid result workbook first.");
       const examName = $("analyticsExamName").value.trim(), academicYear = $("analyticsYear").value.trim();
