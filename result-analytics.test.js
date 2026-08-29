@@ -30,6 +30,10 @@ test("missing required metadata and empty data report clear errors",()=>{
   assert.throws(()=>core.detectResultStructure([["Name","Class","Gender","Math"]]),/no student rows/i);
 });
 test("configuration rejects invalid maximum and pass marks",()=>{assert.throws(()=>core.validateRules(0,33),/Maximum/);assert.throws(()=>core.validateRules(50,60),/Pass Mark/)});
+test("mobile stacked topbar can grow beyond the desktop fixed height",()=>{
+  const responsiveCss=fs.readFileSync("result-analytics.css","utf8");
+  assert.match(responsiveCss,/@media\(max-width:750px\)\{\.topbar\{[^}]*height:auto[^}]*flex-direction:column/);
+});
 test("numeric zero and string zero remain valid absent marks",()=>{
   const zeroRows=[["Student Name","Math","Class","Gender"],["Numeric zero",0,"X A","BOY"],["String zero","0","X A","GIRL"]];
   const zeroStructure=core.detectResultStructure(zeroRows), zeroStudents=core.deriveStudents(zeroStructure,{maximumMarks:100,passMark:33});
