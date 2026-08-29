@@ -89,7 +89,7 @@
   if (typeof document === "undefined") return;
 
   let state = { structure:null, houses:null, filename:"" };
-  const $ = id => document.getElementById(id); const message = (text,success=false) => { $("message").textContent=text; $("message").className=`message${success?" success":""}`; $("message").hidden=false; };
+  const $ = id => document.getElementById(id); const message = (text,success=false) => { $("message").textContent=text; $("message").className=`message generate-message${success?" success":""}`; $("message").hidden=false; };
   const trackAnalytics = eventName => {
     try { root.AcadPulseAnalytics?.trackEvent(eventName); } catch (_) { /* Analytics must never interrupt workbook processing. */ }
   };
