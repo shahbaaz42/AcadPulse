@@ -87,6 +87,11 @@ test("numeric and string marks above the configured maximum are rejected",()=>{
     assert.throws(()=>core.deriveStudents(excessiveStructure,{maximumMarks:50,passMark:20}),/Invalid mark for Math.*Excessive/);
   }
 });
+test("invalid mark errors identify the subject, student, and actual Excel row",()=>{
+  const offsetRows=[["Result report"],["Generated locally"],["Student Name","Social","Class","Gender"],["Valid",40,"X A","BOY"],[],["Iqbal Ahmed",101,"X A","BOY"]];
+  const offsetStructure=core.detectResultStructure(offsetRows);
+  assert.throws(()=>core.deriveStudents(offsetStructure,{maximumMarks:100,passMark:33}),error=>error.message==="Invalid mark for Social — Iqbal Ahmed (Excel row 6). Please enter a mark between 0 and Maximum Mark.");
+});
 test("generation invalidates stale dashboard output without clearing the loaded workbook",()=>{
   const controllerSource=fs.readFileSync("result-analytics.js","utf8");
   const invalidator=controllerSource.match(/function invalidateGeneratedDashboard\(\)\s*\{([^}]*)\}/);

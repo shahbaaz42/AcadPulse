@@ -28,6 +28,11 @@ assert.equal(analytics.trackEvent("not_allowed",{studentName:"Asha"}),false); as
 globalThis.gtag=()=>{throw new Error("blocked")}; assert.equal(analytics.trackEvent("generation_error"),false); delete globalThis.gtag;
 const htmlSource=fs.readFileSync("index.html","utf8");
 assert.match(htmlSource,/googletagmanager\.com\/gtag\/js\?id=G-WNEYWX5WTY/); assert.match(htmlSource,/gtag\('config', 'G-WNEYWX5WTY'/);
+assert.match(htmlSource,/Upload your Marks Consolidation File, set the exam details and generate a polished, house-wise scoreboard in seconds\./);
+assert.equal((htmlSource.match(/<h2>Upload Marks Consolidation File<\/h2>/g)||[]).length,2);
+assert.ok(htmlSource.indexOf('id="message"')>htmlSource.indexOf('id="generateBtn"'));
+assert.ok(htmlSource.indexOf('id="analyticsMessage"')>htmlSource.indexOf('id="analyticsGenerate"'));
+assert.match(htmlSource,/Developed by Shahbaaz Ahmed/); assert.match(htmlSource,/mailto:shahbaaz\.education@gmail\.com/);
 const rows=[["ROLLNO","ADMNO","STUDENT NAME","Science","Maths","Gender","HOUSE"],[1,100,"Asha",40,45,"F","BLUE"],[2,101,"Ben","Absent",50,"M","Blue House"]];
 const structure=detectStructure(rows); assert.deepEqual(structure.subjects.map(s=>s.name),["Science","Maths"]); const result=buildScoreboard(structure,{Science:80,Maths:50}); assert.equal(Object.keys(result).length,1); assert.equal(result["House of Blue"][0].total,3); assert.equal(result["House of Blue"][1].results[0].points,null);
 const admnRows=[["ROLLNO","ADMN NO","STUDENT NAME","Science","HOUSE"],[1,7654,"Asha",40,"Blue"]];
