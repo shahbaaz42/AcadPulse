@@ -87,8 +87,18 @@ test("numeric and string marks above the configured maximum are rejected",()=>{
     assert.throws(()=>core.deriveStudents(excessiveStructure,{maximumMarks:50,passMark:20}),/Invalid mark for Math.*Excessive/);
   }
 });
+test("invalid mark errors identify the subject, student, and actual Excel row",()=>{
+  const offsetRows=[["Result report"],["Generated locally"],["Student Name","Social","Class","Gender"],["Valid",40,"X A","BOY"],[],["Iqbal Ahmed",101,"X A","BOY"]];
+  const offsetStructure=core.detectResultStructure(offsetRows);
+  assert.throws(()=>core.deriveStudents(offsetStructure,{maximumMarks:100,passMark:33}),error=>error.message==="Invalid mark for Social — Iqbal Ahmed (Excel row 6). Please enter a mark between 0 and Maximum Mark.");
+});
 test("generation invalidates stale dashboard output without clearing the loaded workbook",()=>{
   const controllerSource=fs.readFileSync("result-analytics.js","utf8");
+  assert.match(controllerSource,/uploadMessage\s*=.*showMessage\("analyticsUploadMessage", text, success, "upload-message"\)/);
+  assert.match(controllerSource,/message\s*=.*showMessage\("analyticsMessage", text, success, "generate-message"\)/);
+  assert.match(controllerSource,/uploadMessage\("Workbook read locally[^;]+true\)/);
+  assert.match(controllerSource,/uploadMessage\(error\.message\); track\("result_analytics_error"\)/);
+  assert.match(controllerSource,/catch \(error\) \{ message\(error\.message\); track\("result_analytics_error"\); \}/);
   const invalidator=controllerSource.match(/function invalidateGeneratedDashboard\(\)\s*\{([^}]*)\}/);
   assert.ok(invalidator); assert.match(invalidator[1],/state\.students\s*=\s*\[\]/); assert.match(invalidator[1],/\$\("analyticsDashboard"\)\.hidden\s*=\s*true/);
   assert.doesNotMatch(invalidator[1],/state\.structure\s*=/);

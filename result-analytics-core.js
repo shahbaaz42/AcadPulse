@@ -30,7 +30,8 @@
     const columns = Object.fromEntries(Object.entries(ALIASES).map(([key, aliases]) => [key, columnFor(headers, aliases)]));
     if (columns.className < 0) throw new Error("Missing Class. Add a Class column to the workbook.");
     if (columns.gender < 0) throw new Error("Missing Gender. Add a Gender column to the workbook.");
-    const dataRows = rows.slice(headerIndex + 1).filter(row => String(row?.[columns.name] ?? "").trim());
+    const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) => String(row?.[columns.name] ?? "").trim());
+    const dataRows = studentRows.map(entry => entry.row), dataRowNumbers = studentRows.map(entry => entry.excelRow);
     if (!dataRows.length) throw new Error("The workbook contains no student rows.");
     for (const row of dataRows) {
       const studentName = String(row[columns.name] ?? "").trim();
@@ -45,7 +46,7 @@
       })
     );
     if (!subjects.length) throw new Error("No numeric subject columns were detected.");
-    return { headerIndex, headers, columns, subjects, dataRows };
+    return { headerIndex, headers, columns, subjects, dataRows, dataRowNumbers };
   }
 
   function validateRules(maximumMarks, passMark) {
@@ -63,7 +64,8 @@
         const normalized = typeof raw === "string" ? raw.trim() : raw;
         const mark = Number(normalized);
         if (normalized === "" || normalized == null || typeof normalized === "boolean" || !Number.isFinite(mark) || mark < 0 || mark > rules.maximumMarks) {
-          throw new Error(`Invalid mark for ${subject.name} in the row for ${row[structure.columns.name]}.`);
+          const excelRow = structure.dataRowNumbers?.[sourceIndex] ?? structure.headerIndex + sourceIndex + 2;
+          throw new Error(`Invalid mark for ${subject.name} — ${row[structure.columns.name]} (Excel row ${excelRow}). Please enter a mark between 0 and Maximum Mark.`);
         }
         return mark;
       });

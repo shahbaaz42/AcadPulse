@@ -23,7 +23,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#" aria-label="AcadPulse home"><span class="brand-mark">A</span><span><strong>AcadPulse</strong><small>Academic Intelligence Platform</small></span></a>
+    <div class="brand-group"><a class="brand" href="#" aria-label="AcadPulse home"><span class="brand-mark">A</span><span><strong>AcadPulse</strong><small>Academic Intelligence Platform</small></span></a><div class="developer"><strong>Developed by Shahbaaz Ahmed</strong><a href="mailto:shahbaaz.education@gmail.com">shahbaaz.education@gmail.com</a></div></div>
     <nav class="module-switcher" aria-label="AcadPulse modules">
       <button class="module-tab active" data-module="scoreboard">Scoreboard Generator</button>
       <button class="module-tab" data-module="analytics">Result Analytics</button>
@@ -32,7 +32,7 @@
 
   <main id="scoreboardModule" class="module-view">
     <section class="hero">
-      <div><span class="eyebrow">ACADEMIC PERFORMANCE · V1</span><h1>Turn marks into a<br><em>house scoreboard.</em></h1><p>Upload your consolidation workbook, set the exam details and generate a polished, house-wise scoreboard in minutes.</p></div>
+      <div><span class="eyebrow">ACADEMIC PERFORMANCE · V1</span><h1>Turn marks into a<br><em>house scoreboard.</em></h1><p>Upload your Marks Consolidation File, set the exam details and generate a polished, house-wise scoreboard in seconds.</p></div>
       <div class="privacy-card"><span>⌁</span><div><strong>Private by design</strong><p>Your workbook stays in this browser. Student data is never sent to a server.</p></div></div>
     </section>
 
@@ -40,15 +40,15 @@
       <span class="active"><b>1</b> Upload</span><i></i><span><b>2</b> Exam Details</span><i></i><span><b>3</b> Maximum Marks</span><i></i><span><b>4</b> Generate</span><i></i><span><b>5</b> Preview &amp; Download</span>
     </nav>
 
-    <div id="message" class="message" role="alert" hidden></div>
     <section class="workspace">
       <article class="card upload-card">
-        <div class="section-heading"><span class="number">01</span><div><h2>Upload Consolidation File</h2><p>Start with your class marks workbook</p></div></div>
+        <div class="section-heading"><span class="number">01</span><div><h2>Upload Marks Consolidation File</h2><p>Start with your Marks Consolidation File</p></div></div>
         <label class="dropzone" id="dropzone">
           <input id="fileInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
           <span class="upload-icon">⇧</span><strong>Drop your workbook here</strong><p>or <u>browse from your computer</u></p><small>XLSX · Maximum 10 MB</small>
         </label>
         <div id="fileSummary" class="file-summary" hidden></div>
+        <div id="uploadMessage" class="message upload-message" role="alert" hidden></div>
       </article>
 
       <article class="card locked" id="examCard">
@@ -68,6 +68,7 @@
     </section>
 
     <button id="generateBtn" class="generate" disabled><span>Generate Scoreboard</span><b>→</b></button>
+    <div id="message" class="message generate-message" role="alert" hidden></div>
 
     <section id="preview" class="preview" hidden>
       <div class="preview-toolbar"><div><span class="eyebrow">LIVE PREVIEW</span><h2>House Scoreboard</h2></div><div class="report-actions"><button id="pdfBtn" class="download" disabled>▤ Download Full Report PDF</button><button id="downloadBtn" class="download" disabled>⇩ Download Excel</button></div></div>
@@ -82,17 +83,17 @@
       <div class="privacy-card"><span>⌁</span><div><strong>Local and private</strong><p>Names, admission numbers and marks never leave this device.</p></div></div>
     </section>
     <nav class="steps analytics-steps" aria-label="Result analytics progress">
-      <span class="active"><b>1</b> Upload Result Workbook</span><i></i><span><b>2</b> Exam Configuration</span><i></i><span><b>3</b> Generate Dashboard</span><i></i><span><b>4</b> Interactive Dashboard</span>
+      <span class="active"><b>1</b> Upload Marks Consolidation File</span><i></i><span><b>2</b> Exam Configuration</span><i></i><span><b>3</b> Generate Dashboard</span><i></i><span><b>4</b> Interactive Dashboard</span>
     </nav>
-    <div id="analyticsMessage" class="message" role="alert" hidden></div>
     <section class="analytics-setup">
       <article class="card">
-        <div class="section-heading"><span class="number">01</span><div><h2>Upload Result Workbook</h2><p>Student metadata and subject marks on the first worksheet</p></div></div>
+        <div class="section-heading"><span class="number">01</span><div><h2>Upload Marks Consolidation File</h2><p>Student metadata and subject marks on the first worksheet</p></div></div>
         <label class="dropzone" id="analyticsDropzone">
           <input id="analyticsFileInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-          <span class="upload-icon">⇧</span><strong>Drop your result workbook here</strong><p>or <u>browse from your computer</u></p><small>XLSX · PROCESSED LOCALLY · MAXIMUM 10 MB</small>
+          <span class="upload-icon">⇧</span><strong>Drop your Marks Consolidation File here</strong><p>or <u>browse from your computer</u></p><small>XLSX · PROCESSED LOCALLY · MAXIMUM 10 MB</small>
         </label>
         <div id="analyticsFileSummary" class="file-summary" hidden></div>
+        <div id="analyticsUploadMessage" class="message upload-message" role="alert" hidden></div>
       </article>
       <article class="card locked" id="analyticsConfigCard">
         <div class="section-heading"><span class="number">02</span><div><h2>Exam Configuration</h2><p>Rules apply to every detected subject in Phase 1</p></div></div>
@@ -104,6 +105,7 @@
         </div>
       </article>
       <button id="analyticsGenerate" class="generate" disabled><span>Generate Interactive Dashboard</span><b>→</b></button>
+      <div id="analyticsMessage" class="message generate-message" role="alert" hidden></div>
     </section>
 
     <section id="analyticsDashboard" class="analytics-dashboard" hidden>
