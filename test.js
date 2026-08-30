@@ -32,9 +32,15 @@ assert.match(htmlSource,/Upload your Marks Consolidation File, set the exam deta
 assert.equal((htmlSource.match(/<h2>Upload Marks Consolidation File<\/h2>/g)||[]).length,2);
 assert.ok(htmlSource.indexOf('id="message"')>htmlSource.indexOf('id="generateBtn"'));
 assert.ok(htmlSource.indexOf('id="analyticsMessage"')>htmlSource.indexOf('id="analyticsGenerate"'));
+assert.ok(htmlSource.indexOf('id="uploadMessage"')>htmlSource.indexOf('id="fileSummary"') && htmlSource.indexOf('id="uploadMessage"')<htmlSource.indexOf('id="examCard"'));
+assert.ok(htmlSource.indexOf('id="analyticsUploadMessage"')>htmlSource.indexOf('id="analyticsFileSummary"') && htmlSource.indexOf('id="analyticsUploadMessage"')<htmlSource.indexOf('id="analyticsConfigCard"'));
 assert.match(htmlSource,/Developed by Shahbaaz Ahmed/); assert.match(htmlSource,/mailto:shahbaaz\.education@gmail\.com/);
 const scoreboardSource=fs.readFileSync("script.js","utf8");
-assert.match(scoreboardSource,/className=`message generate-message\$\{success\?" success":""\}`/);
+assert.match(scoreboardSource,/uploadMessage\s*=.*showMessage\("uploadMessage",text,success,"upload-message"\)/);
+assert.match(scoreboardSource,/message\s*=.*showMessage\("message",text,success,"generate-message"\)/);
+assert.match(scoreboardSource,/uploadMessage\("Workbook read successfully[^;]+true\)/);
+assert.match(scoreboardSource,/catch\(error\)\{ state\.structure=null; trackAnalytics\("generation_error"\); uploadMessage\(error\.message\); \}/);
+assert.match(scoreboardSource,/catch\(error\)\{trackAnalytics\("generation_error"\);message\(error\.message\);\}/);
 const rows=[["ROLLNO","ADMNO","STUDENT NAME","Science","Maths","Gender","HOUSE"],[1,100,"Asha",40,45,"F","BLUE"],[2,101,"Ben","Absent",50,"M","Blue House"]];
 const structure=detectStructure(rows); assert.deepEqual(structure.subjects.map(s=>s.name),["Science","Maths"]); const result=buildScoreboard(structure,{Science:80,Maths:50}); assert.equal(Object.keys(result).length,1); assert.equal(result["House of Blue"][0].total,3); assert.equal(result["House of Blue"][1].results[0].points,null);
 const admnRows=[["ROLLNO","ADMN NO","STUDENT NAME","Science","HOUSE"],[1,7654,"Asha",40,"Blue"]];

@@ -89,7 +89,10 @@
   if (typeof document === "undefined") return;
 
   let state = { structure:null, houses:null, filename:"" };
-  const $ = id => document.getElementById(id); const message = (text,success=false) => { $("message").textContent=text; $("message").className=`message generate-message${success?" success":""}`; $("message").hidden=false; };
+  const $ = id => document.getElementById(id);
+  const showMessage = (id,text,success=false,placement="") => { const box=$(id); box.textContent=text; box.className=`message${placement?` ${placement}`:""}${success?" success":""}`; box.hidden=false; };
+  const uploadMessage = (text,success=false) => showMessage("uploadMessage",text,success,"upload-message");
+  const message = (text,success=false) => showMessage("message",text,success,"generate-message");
   const trackAnalytics = eventName => {
     try { root.AcadPulseAnalytics?.trackEvent(eventName); } catch (_) { /* Analytics must never interrupt workbook processing. */ }
   };
@@ -102,6 +105,8 @@
   async function loadFile(file) {
     try {
       invalidateGeneratedScoreboard();
+      $("message").hidden=true;
+      $("uploadMessage").hidden=true;
       if (!file || !file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Please choose an .xlsx workbook.");
       if (file.size > 10*1024*1024) throw new Error("The workbook is larger than the 10 MB limit.");
       if (typeof XLSX === "undefined" || typeof XLSX.read !== "function" || !XLSX.utils) throw new Error("The local Excel component failed to initialize. Verify that vendor/acadpulse-xlsx.js is present, then reload the application.");
@@ -111,9 +116,9 @@
       $("fileSummary").innerHTML=`<div class="file-row"><div><strong>✓ ${escapeHtml(file.name)}</strong><small>${state.structure.dataRows.length} students · ${state.structure.subjects.length} subjects · ${houses.length} houses</small></div></div><div class="detected">${state.structure.subjects.map(s=>`<span class="tag">${escapeHtml(s.name)}</span>`).join("")}${houses.map(h=>`<span class="tag">${escapeHtml(h)}</span>`).join("")}</div>`;
       $("fileSummary").hidden=false; [$("examCard"),$("marksCard")].forEach(el=>el.classList.remove("locked")); $("generateBtn").disabled=false;
       $("subjectMarks").innerHTML=state.structure.subjects.map((s,i)=>`<label>${escapeHtml(s.name)}<input class="max-mark" data-subject="${escapeHtml(s.name)}" type="number" min="0.01" step="0.01" placeholder="Maximum marks" aria-label="Maximum marks for ${escapeHtml(s.name)}"></label>`).join("");
-      message("Workbook read successfully. Review the detected subjects and complete the details.",true);
+      uploadMessage("Workbook read successfully. Review the detected subjects and complete the details.",true);
       trackAnalytics("workbook_uploaded");
-    } catch(error){ state.structure=null; trackAnalytics("generation_error"); message(error.message); }
+    } catch(error){ state.structure=null; trackAnalytics("generation_error"); uploadMessage(error.message); }
   }
   const escapeHtml = value => String(value??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const fmt = value => value == null ? '<span class="blank">—</span>' : Number(value.toFixed(2)).toString();

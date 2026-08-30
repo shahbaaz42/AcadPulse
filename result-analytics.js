@@ -6,7 +6,9 @@
   const $ = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[character]));
   const format = value => Number(Number(value).toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 });
-  const message = (text, success = false) => { const box = $("analyticsMessage"); box.textContent = text; box.className = `message generate-message${success ? " success" : ""}`; box.hidden = false; };
+  const showMessage = (id, text, success = false, placement = "") => { const box = $(id); box.textContent = text; box.className = `message${placement ? ` ${placement}` : ""}${success ? " success" : ""}`; box.hidden = false; };
+  const uploadMessage = (text, success = false) => showMessage("analyticsUploadMessage", text, success, "upload-message");
+  const message = (text, success = false) => showMessage("analyticsMessage", text, success, "generate-message");
   const track = eventName => { try { window.AcadPulseAnalytics?.trackEvent(eventName); } catch (_) { /* Telemetry cannot interrupt local processing. */ } };
 
   document.querySelectorAll(".module-tab").forEach(button => button.addEventListener("click", () => {
@@ -21,6 +23,8 @@
     const loadId = state.loadGuard.begin();
     state.structure = null; state.students = []; state.filename = "";
     $("analyticsDashboard").hidden = true; $("analyticsFileSummary").hidden = true;
+    $("analyticsMessage").hidden = true;
+    $("analyticsUploadMessage").hidden = true;
     $("analyticsConfigCard").classList.add("locked"); $("analyticsGenerate").disabled = true;
     try {
       if (!file || !file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Invalid workbook. Choose an .xlsx result workbook.");
@@ -40,10 +44,10 @@
       state.structure = structure; state.filename = file.name;
       $("analyticsFileSummary").innerHTML = `<div class="file-row"><div><strong>✓ ${escapeHtml(file.name)}</strong><small>${structure.dataRows.length} students · ${structure.subjects.length} dynamically detected subjects</small></div></div><div class="detected">${structure.subjects.map(subject => `<span class="tag">${escapeHtml(subject.name)}</span>`).join("")}</div>`;
       $("analyticsFileSummary").hidden = false; $("analyticsConfigCard").classList.remove("locked"); $("analyticsGenerate").disabled = false;
-      message("Workbook read locally. Confirm the exam rules, then generate the dashboard.", true); track("result_workbook_uploaded");
+      uploadMessage("Workbook read locally. Confirm the exam rules, then generate the dashboard.", true); track("result_workbook_uploaded");
     } catch (error) {
       if (!state.loadGuard.isCurrent(loadId)) return;
-      state.structure = null; $("analyticsGenerate").disabled = true; message(error.message); track("result_analytics_error");
+      state.structure = null; $("analyticsGenerate").disabled = true; uploadMessage(error.message); track("result_analytics_error");
     }
   }
 
