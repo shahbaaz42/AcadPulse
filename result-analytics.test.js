@@ -9,8 +9,17 @@ const rows = [["Roll Number","Admission No","Student Name","Physics","Art","Clas
 const structure = core.detectResultStructure(rows);
 const students = core.deriveStudents(structure,{maximumMarks:100,passMark:33});
 
-test("metadata aliases are detected",()=>assert.deepStrictEqual(structure.columns,{roll:0,admission:1,name:2,className:5,section:-1,gender:6}));
+test("metadata aliases are detected",()=>assert.deepStrictEqual(structure.columns,{roll:0,admission:1,name:2,className:5,section:-1,gender:6,house:-1}));
 test("subjects are detected dynamically by excluding metadata",()=>assert.deepStrictEqual(structure.subjects.map(s=>s.name),["Physics","Art"]));
+test("House uses Scoreboard-compatible metadata recognition and is never treated as a subject",()=>{
+  const houseRows=[["Roll Number","Admission Number","Student Name","HOUSE","Science","Social","Class","Gender"],[1,"A1","Student","Red House",75,68,"X A","BOY"]];
+  const houseStructure=core.detectResultStructure(houseRows);
+  assert.strictEqual(houseStructure.columns.house,3);
+  assert.deepStrictEqual(houseStructure.subjects.map(subject=>subject.name),["Science","Social"]);
+  const [houseStudent]=core.deriveStudents(houseStructure,{maximumMarks:100,passMark:33});
+  assert.deepStrictEqual(houseStudent.marks,[75,68]);
+  assert.strictEqual(houseStudent.totalMarks,143);
+});
 test("total and percentage use every detected subject",()=>{assert.strictEqual(students[0].totalMarks,150);assert.strictEqual(students[0].percentage,75)});
 test("failed-subject count includes zero per Power Query",()=>{assert.strictEqual(students[1].failedSubjects,1);assert.strictEqual(students[2].failedSubjects,1)});
 test("absent-subject count counts zero",()=>assert.strictEqual(students[2].absentSubjects,1));

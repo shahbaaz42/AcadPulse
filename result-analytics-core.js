@@ -7,7 +7,8 @@
     name: ["studentname", "nameofthestudent", "name"],
     className: ["class", "classname", "grade", "gradeclass"],
     section: ["section", "sec"],
-    gender: ["gender", "sex"]
+    gender: ["gender", "sex"],
+    house: ["house"]
   };
   const normalizeHeader = value => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
   const metadata = new Set(Object.values(ALIASES).flat());
