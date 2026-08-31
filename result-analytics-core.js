@@ -42,14 +42,11 @@
     );
     const dataRows = studentRows.map(entry => entry.row), dataRowNumbers = studentRows.map(entry => entry.excelRow);
     if (!dataRows.length) throw new Error("The workbook contains no student rows.");
-    const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) =>
-      name && !metadata.has(normalizeHeader(name)) && dataRows.some(row => {
-        const value = row[index];
-        const normalized = typeof value === "string" ? value.trim() : value;
-        return normalized !== "" && normalized != null && typeof normalized !== "boolean" && Number.isFinite(Number(normalized));
-      })
-    );
-    if (!subjects.length) throw new Error("No numeric subject columns were detected.");
+    const requiredColumns = [columns.name, columns.admission, columns.className, columns.gender];
+    const invalidMetadataIndex = dataRows.findIndex(row => requiredColumns.some(column => column < 0 || !String(row[column] ?? "").trim()));
+    if (invalidMetadataIndex >= 0) throw workbookRowError(dataRowNumbers[invalidMetadataIndex]);
+    const subjects = headers.map((name, index) => ({ name, index })).filter(({ name }) => name && !metadata.has(normalizeHeader(name)));
+    if (!subjects.length) throw new Error("No subject columns were detected.");
     return { headerIndex, headers, columns, subjects, dataRows, dataRowNumbers };
   }
 

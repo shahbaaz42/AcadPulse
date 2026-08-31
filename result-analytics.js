@@ -10,6 +10,7 @@
   const uploadMessage = (text, success = false) => showMessage("analyticsUploadMessage", text, success, "upload-message");
   const message = (text, success = false) => showMessage("analyticsMessage", text, success, "generate-message");
   const hideRequirements = () => { $("analyticsRequirements").hidden = true; };
+  const showRequirementsAfter = messageId => { const requirements = $("analyticsRequirements"); $(messageId).insertAdjacentElement("afterend", requirements); requirements.hidden = false; };
   const track = eventName => { try { window.AcadPulseAnalytics?.trackEvent(eventName); } catch (_) { /* Telemetry cannot interrupt local processing. */ } };
 
   document.querySelectorAll(".module-tab").forEach(button => button.addEventListener("click", () => {
@@ -49,7 +50,7 @@
       uploadMessage("Workbook read locally. Confirm the exam rules, then generate the dashboard.", true); track("result_workbook_uploaded");
     } catch (error) {
       if (!state.loadGuard.isCurrent(loadId)) return;
-      state.structure = null; $("analyticsGenerate").disabled = true; uploadMessage(error.message); track("result_analytics_error");
+      state.structure = null; $("analyticsGenerate").disabled = true; uploadMessage(error.message); if (error.code === "WORKBOOK_ROW_VALIDATION") showRequirementsAfter("analyticsUploadMessage"); track("result_analytics_error");
     }
   }
 
@@ -72,7 +73,7 @@
       $("dashboardTitle").textContent = examName; $("dashboardSubtitle").textContent = `${academicYear} · ${state.structure.subjects.length} subjects · Maximum ${format(state.configuration.maximumMarks)} · Pass mark ${format(state.configuration.passMark)}`;
       $("analyticsDashboard").hidden = false; render(); $("analyticsDashboard").scrollIntoView({ behavior: "smooth" });
       message("Dashboard generated. Class and Gender filters update every visual immediately.", true); track("result_dashboard_generated");
-    } catch (error) { message(error.message); $("analyticsRequirements").hidden = error.code !== "WORKBOOK_ROW_VALIDATION"; track("result_analytics_error"); }
+    } catch (error) { message(error.message); if (error.code === "WORKBOOK_ROW_VALIDATION") showRequirementsAfter("analyticsMessage"); track("result_analytics_error"); }
   }
 
   function barChart(items, labelKey, valueKey, color = "#197052") {

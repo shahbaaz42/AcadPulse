@@ -44,7 +44,28 @@ test("metadata is validated before subject marks",()=>{
   const rows=[["Student Name","Admission Number","Math","Class","Gender"],["Valid","A1",45,"X A","BOY"],["","A2","not numeric","X A","BOY"]];
   assert.throws(()=>core.deriveStudents(core.detectResultStructure(rows),{maximumMarks:100,passMark:33}),error=>error.message==="Please check the details in Excel row 3.");
   const source=fs.readFileSync("result-analytics-core.js","utf8");
-  assert.ok(source.indexOf("requiredColumns.some") < source.indexOf("structure.subjects.map"));
+  assert.ok(source.indexOf("invalidMetadataIndex") < source.indexOf("const subjects"));
+});
+test("intended subject headers are never dropped because their data is invalid",()=>{
+  const header=["Student Name","Admission Number","Valid Subject","Blank Subject","Text Subject","Class","Gender"];
+  const rows=[header,["Student","A1",45,"","not numeric","X A","BOY"]];
+  const intended=core.detectResultStructure(rows);
+  assert.deepStrictEqual(intended.subjects.map(subject=>subject.name),["Valid Subject","Blank Subject","Text Subject"]);
+  assert.throws(()=>core.deriveStudents(intended,{maximumMarks:100,passMark:33}),error=>error.message==="Please check the details in Excel row 2.");
+});
+test("all-blank intended subjects fail row validation rather than subject detection",()=>{
+  const rows=[["Student Name","Admission Number","Math","Science","Class","Gender"],["Student","A1",""," \t ","X A","BOY"]];
+  const intended=core.detectResultStructure(rows);
+  assert.strictEqual(intended.subjects.length,2);
+  assert.throws(()=>core.deriveStudents(intended,{maximumMarks:100,passMark:33}),error=>error.message==="Please check the details in Excel row 2.");
+});
+test("missing metadata wins over invalid subject data during structure detection",()=>{
+  const rows=[["Student Name","Admission Number","Math","Class","Gender"],["","A1","not numeric","X A","BOY"]];
+  assert.throws(()=>core.detectResultStructure(rows),error=>error.code==="WORKBOOK_ROW_VALIDATION" && error.message==="Please check the details in Excel row 2.");
+});
+test("a workbook with genuinely no subject headers reports a structural error",()=>{
+  const rows=[["Student Name","Admission Number","Class","Gender"],["Student","A1","X A","BOY"]];
+  assert.throws(()=>core.detectResultStructure(rows),/No subject columns were detected\./);
 });
 test("fully populated Class and Gender values are accepted and trimmed during derivation",()=>{
   const completeRows=[["Student Name","Admission Number","Math","Class","Gender"],["Complete"," A1 ",45," X A "," BOY "]];
@@ -102,8 +123,8 @@ test("generation invalidates stale dashboard output without clearing the loaded 
   assert.match(controllerSource,/uploadMessage\s*=.*showMessage\("analyticsUploadMessage", text, success, "upload-message"\)/);
   assert.match(controllerSource,/message\s*=.*showMessage\("analyticsMessage", text, success, "generate-message"\)/);
   assert.match(controllerSource,/uploadMessage\("Workbook read locally[^;]+true\)/);
-  assert.match(controllerSource,/uploadMessage\(error\.message\); track\("result_analytics_error"\)/);
-  assert.match(controllerSource,/catch \(error\) \{ message\(error\.message\); \$\("analyticsRequirements"\)\.hidden = error\.code !== "WORKBOOK_ROW_VALIDATION";/);
+  assert.match(controllerSource,/uploadMessage\(error\.message\); if \(error\.code === "WORKBOOK_ROW_VALIDATION"\) showRequirementsAfter\("analyticsUploadMessage"\);/);
+  assert.match(controllerSource,/catch \(error\) \{ message\(error\.message\); if \(error\.code === "WORKBOOK_ROW_VALIDATION"\) showRequirementsAfter\("analyticsMessage"\);/);
   const invalidator=controllerSource.match(/function invalidateGeneratedDashboard\(\)\s*\{([^}]*)\}/);
   assert.ok(invalidator); assert.match(invalidator[1],/state\.students\s*=\s*\[\]/); assert.match(invalidator[1],/\$\("analyticsDashboard"\)\.hidden\s*=\s*true/);
   assert.doesNotMatch(invalidator[1],/state\.structure\s*=/);
@@ -115,7 +136,9 @@ test("requirements table is complete, responsive, and cleared after successful p
   assert.match(html,/id="analyticsRequirements"[^>]*hidden/);
   assert.match(css,/\.requirements-scroll\{[^}]*overflow-x:auto/);
   assert.match(controller,/hideRequirements\(\);\s*try/);
-  assert.match(controller,/hidden = error\.code !== "WORKBOOK_ROW_VALIDATION"/);
+  assert.match(controller,/showRequirementsAfter\("analyticsUploadMessage"\)/);
+  assert.match(controller,/showRequirementsAfter\("analyticsMessage"\)/);
+  assert.match(controller,/insertAdjacentElement\("afterend", requirements\)/);
 });
 test("dropping a workbook clears the picker so its previous file can be reselected",()=>{
   const controllerSource=fs.readFileSync("result-analytics.js","utf8");
