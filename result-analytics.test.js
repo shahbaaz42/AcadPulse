@@ -20,6 +20,20 @@ test("House uses Scoreboard-compatible metadata recognition and is never treated
   assert.deepStrictEqual(houseStudent.marks,[75,68]);
   assert.strictEqual(houseStudent.totalMarks,143);
 });
+test("the structural subject region excludes trailing ancillary columns",()=>{
+  const rows=[["ADMNO","STUDENT NAME","Science","Social","Class","Gender","Remarks"],["A1","Student",75,68,"X A","BOY","Improving"]];
+  const detected=core.detectResultStructure(rows);
+  assert.deepStrictEqual(detected.subjects.map(subject=>subject.name),["Science","Social"]);
+  assert.deepStrictEqual(core.deriveStudents(detected,{maximumMarks:100,passMark:33})[0].marks,[75,68]);
+});
+test("known remarks, comments, and notes are always ancillary rather than subjects",()=>{
+  for(const ancillary of ["Remarks","Comment","Comments","Note","Notes","Teacher Remark","Teacher Remarks"]){
+    const rows=[["ADMNO","STUDENT NAME","Science",ancillary,"Social","Class","Gender"],["A1","Student",75,"free text",68,"X A","BOY"]];
+    const detected=core.detectResultStructure(rows);
+    assert.deepStrictEqual(detected.subjects.map(subject=>subject.name),["Science","Social"],ancillary);
+    assert.doesNotThrow(()=>core.deriveStudents(detected,{maximumMarks:100,passMark:33}));
+  }
+});
 test("total and percentage use every detected subject",()=>{assert.strictEqual(students[0].totalMarks,150);assert.strictEqual(students[0].percentage,75)});
 test("failed-subject count includes zero per Power Query",()=>{assert.strictEqual(students[1].failedSubjects,1);assert.strictEqual(students[2].failedSubjects,1)});
 test("absent-subject count counts zero",()=>assert.strictEqual(students[2].absentSubjects,1));
@@ -47,6 +61,14 @@ test("missing and whitespace-only required metadata produce generic row errors",
   for(const [column,value] of [[0,""],[1,""],[3,""],[4,""],[0," \t "],[1," \t "],[3," \t "],[4," \t "]]) {
     const student=["Student","A1",45,"X A","BOY"]; student[column]=value;
     rowError([header,student]);
+  }
+});
+test("Admission Number column and per-student values remain required",()=>{
+  const missingColumn=[["Student Name","Math","Class","Gender"],["Student",45,"X A","BOY"]];
+  assert.throws(()=>core.detectResultStructure(missingColumn),error=>error.message==="Please check the details in Excel row 2.");
+  for(const admission of [""," \t "]){
+    const rows=[["Admission Number","Student Name","Math","Class","Gender"],[admission,"Student",45,"X A","BOY"]];
+    assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 2.");
   }
 });
 test("metadata is validated before subject marks",()=>{

@@ -10,8 +10,9 @@
     gender: ["gender", "sex"],
     house: ["house"]
   };
+  const ANCILLARY_ALIASES = ["remark", "remarks", "comment", "comments", "note", "notes", "teacherremark", "teacherremarks"];
   const normalizeHeader = value => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-  const metadata = new Set(Object.values(ALIASES).flat());
+  const metadata = new Set([...Object.values(ALIASES).flat(), ...ANCILLARY_ALIASES]);
   const columnFor = (headers, aliases) => headers.findIndex(header => aliases.includes(normalizeHeader(header)));
   const round2 = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
@@ -46,7 +47,9 @@
     const requiredColumns = [columns.name, columns.admission, columns.className, columns.gender];
     const invalidMetadataIndex = dataRows.findIndex(row => requiredColumns.some(column => column < 0 || !String(row[column] ?? "").trim()));
     if (invalidMetadataIndex >= 0) throw workbookRowError(dataRowNumbers[invalidMetadataIndex]);
-    const subjects = headers.map((name, index) => ({ name, index })).filter(({ name }) => name && !metadata.has(normalizeHeader(name)));
+    const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) =>
+      name && index > columns.name && index < columns.className && !metadata.has(normalizeHeader(name))
+    );
     if (!subjects.length) throw new Error("No subject columns were detected.");
     return { headerIndex, headers, columns, subjects, dataRows, dataRowNumbers };
   }
@@ -145,7 +148,7 @@
     };
   }
 
-  const api = { ALIASES, normalizeHeader, createLatestLoadGuard, detectResultStructure, validateRules, deriveStudents, filterStudents, percentageBand, rankStudents, summarize, round2, workbookRowError };
+  const api = { ALIASES, ANCILLARY_ALIASES, normalizeHeader, createLatestLoadGuard, detectResultStructure, validateRules, deriveStudents, filterStudents, percentageBand, rankStudents, summarize, round2, workbookRowError };
   if (typeof module !== "undefined") module.exports = api;
   root.AcadPulseResultCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -10,7 +10,7 @@ Attendance, authentication, databases, LMS features and portals remain outside t
 ## What V1 does
 
 - Reads an `.xlsx` consolidation workbook in the browser and uses its first worksheet.
-- Detects identity/metadata fields and dynamically identifies numeric marks columns as subjects.
+- Detects identity/metadata fields and dynamically identifies subject headers in the standard consolidation subject region.
 - Collects Exam Name, Class, Section and a separate maximum mark for every subject.
 - Converts obtained marks to percentages and points, groups students by normalized House values, and displays student and house totals/averages.
 - Downloads a professionally formatted, single-sheet Excel report with every House followed by an overall summary.
@@ -60,7 +60,7 @@ Parsing, calculations, preview generation and Excel creation happen in the user'
 
 ### Workflow and source workbook
 
-Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. The header may appear after introductory rows, but must contain recognizable aliases for **Student Name**, **Class** and **Gender**. Roll Number, Admission Number and Section are optional. All remaining columns with numeric student values are detected dynamically as subjects, so the module is not limited to the six subjects in the reference workbook.
+Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. The header may appear after introductory rows, but must contain recognizable aliases for **Admission Number**, **Student Name**, **Class** and **Gender**; every student row must provide all four values. Roll Number, Section, House, Remarks, Comments, Notes and Teacher Remarks are optional metadata and are not treated as subjects. Non-empty, non-metadata headers between Student Name and Class are detected dynamically as subjects, regardless of their cell contents, so invalid or blank marks are reported rather than silently dropping a subject.
 
 Phase 1 uses one configurable **Maximum Marks** and **Pass Mark** for every detected subject. Exam Name and Academic Year identify the dashboard. The included reference workbook uses Maximum Marks `100` and Pass Mark `33`; teachers can change both for other exams.
 
