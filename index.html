@@ -79,7 +79,7 @@
   </main>
   <main id="analyticsModule" class="module-view" hidden>
     <section class="analytics-hero">
-      <div><span class="eyebrow">RESULT ANALYTICS · PHASE 1</span><h1>See the whole result story.</h1><p>Upload a result workbook and build a private, filterable Page 1 dashboard entirely in your browser.</p></div>
+      <div><span class="eyebrow">RESULT ANALYTICS · PHASE 1</span><h1>See the whole result story.</h1><p>Upload a Marks Consolidation File and build a private, filterable Page 1 dashboard entirely in your browser.</p></div>
       <div class="privacy-card"><span>⌁</span><div><strong>Local and private</strong><p>Names, admission numbers and marks never leave this device.</p></div></div>
     </section>
     <nav class="steps analytics-steps" aria-label="Result analytics progress">
@@ -106,6 +106,29 @@
       </article>
       <button id="analyticsGenerate" class="generate" disabled><span>Generate Interactive Dashboard</span><b>→</b></button>
       <div id="analyticsMessage" class="message generate-message" role="alert" hidden></div>
+      <section id="analyticsRequirements" class="requirements-card" aria-labelledby="analyticsRequirementsTitle" hidden>
+        <h3 id="analyticsRequirementsTitle">Marks Consolidation File Requirements</h3>
+        <div class="requirements-scroll" tabindex="0">
+          <table>
+            <thead><tr><th>Field / Rule</th><th>Requirement</th></tr></thead>
+            <tbody>
+              <tr><td>Student Name</td><td>Required; must not be blank</td></tr>
+              <tr><td>Admission Number</td><td>Required; must not be blank</td></tr>
+              <tr><td>Class</td><td>Required; must not be blank</td></tr>
+              <tr><td>Gender</td><td>Required; must not be blank</td></tr>
+              <tr><td>Subject Mark</td><td>Required; must be numeric</td></tr>
+              <tr><td>Blank / whitespace-only mark</td><td>Not allowed</td></tr>
+              <tr><td>Negative mark</td><td>Not allowed</td></tr>
+              <tr><td>Mark above Maximum Marks</td><td>Not allowed</td></tr>
+              <tr><td>Zero mark</td><td>Allowed; handled by the existing ABSENT rule</td></tr>
+              <tr><td>Decimal mark</td><td>Allowed when between 0 and Maximum Marks</td></tr>
+              <tr><td>Mark equal to Maximum Marks</td><td>Allowed</td></tr>
+              <tr><td>Maximum Marks</td><td>Must be numeric and greater than 0</td></tr>
+              <tr><td>Pass Mark</td><td>Must be numeric, greater than 0, and not exceed Maximum Marks</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
 
     <section id="analyticsDashboard" class="analytics-dashboard" hidden>

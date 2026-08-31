@@ -14,6 +14,13 @@
   const columnFor = (headers, aliases) => headers.findIndex(header => aliases.includes(normalizeHeader(header)));
   const round2 = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+  function workbookRowError(excelRow) {
+    const error = new Error(`Please check the details in Excel row ${excelRow}.`);
+    error.code = "WORKBOOK_ROW_VALIDATION";
+    error.excelRow = excelRow;
+    return error;
+  }
+
   function createLatestLoadGuard() {
     let latestLoadId = 0;
     return Object.freeze({
@@ -30,14 +37,11 @@
     const columns = Object.fromEntries(Object.entries(ALIASES).map(([key, aliases]) => [key, columnFor(headers, aliases)]));
     if (columns.className < 0) throw new Error("Missing Class. Add a Class column to the workbook.");
     if (columns.gender < 0) throw new Error("Missing Gender. Add a Gender column to the workbook.");
-    const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) => String(row?.[columns.name] ?? "").trim());
+    const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) =>
+      Array.isArray(row) && row.some(value => String(value ?? "").trim() !== "")
+    );
     const dataRows = studentRows.map(entry => entry.row), dataRowNumbers = studentRows.map(entry => entry.excelRow);
     if (!dataRows.length) throw new Error("The workbook contains no student rows.");
-    for (const row of dataRows) {
-      const studentName = String(row[columns.name] ?? "").trim();
-      if (!String(row[columns.className] ?? "").trim()) throw new Error(`Missing Class value for student "${studentName}".`);
-      if (!String(row[columns.gender] ?? "").trim()) throw new Error(`Missing Gender value for student "${studentName}".`);
-    }
     const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) =>
       name && !metadata.has(normalizeHeader(name)) && dataRows.some(row => {
         const value = row[index];
@@ -51,21 +55,23 @@
 
   function validateRules(maximumMarks, passMark) {
     const maximum = Number(maximumMarks), pass = Number(passMark);
-    if (!Number.isFinite(maximum) || maximum <= 0) throw new Error("Maximum Marks must be a number greater than zero.");
-    if (!Number.isFinite(pass) || pass <= 0 || pass > maximum) throw new Error("Pass Mark must be greater than zero and no more than Maximum Marks.");
+    if (!Number.isFinite(maximum) || maximum <= 0) throw new Error("Maximum Marks must be numeric and greater than 0.");
+    if (!Number.isFinite(pass) || pass <= 0 || pass > maximum) throw new Error("Pass Mark must be numeric, greater than 0, and not exceed Maximum Marks.");
     return { maximumMarks: maximum, passMark: pass };
   }
 
   function deriveStudents(structure, configuration) {
     const rules = validateRules(configuration.maximumMarks, configuration.passMark);
     return structure.dataRows.map((row, sourceIndex) => {
+      const excelRow = structure.dataRowNumbers?.[sourceIndex] ?? structure.headerIndex + sourceIndex + 2;
+      const requiredColumns = [structure.columns.name, structure.columns.admission, structure.columns.className, structure.columns.gender];
+      if (requiredColumns.some(column => column < 0 || !String(row[column] ?? "").trim())) throw workbookRowError(excelRow);
       const marks = structure.subjects.map(subject => {
         const raw = row[subject.index];
         const normalized = typeof raw === "string" ? raw.trim() : raw;
         const mark = Number(normalized);
         if (normalized === "" || normalized == null || typeof normalized === "boolean" || !Number.isFinite(mark) || mark < 0 || mark > rules.maximumMarks) {
-          const excelRow = structure.dataRowNumbers?.[sourceIndex] ?? structure.headerIndex + sourceIndex + 2;
-          throw new Error(`Invalid mark for ${subject.name} — ${row[structure.columns.name]} (Excel row ${excelRow}). Please enter a mark between 0 and Maximum Mark.`);
+          throw workbookRowError(excelRow);
         }
         return mark;
       });
@@ -141,7 +147,7 @@
     };
   }
 
-  const api = { ALIASES, normalizeHeader, createLatestLoadGuard, detectResultStructure, validateRules, deriveStudents, filterStudents, percentageBand, rankStudents, summarize, round2 };
+  const api = { ALIASES, normalizeHeader, createLatestLoadGuard, detectResultStructure, validateRules, deriveStudents, filterStudents, percentageBand, rankStudents, summarize, round2, workbookRowError };
   if (typeof module !== "undefined") module.exports = api;
   root.AcadPulseResultCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

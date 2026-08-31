@@ -9,6 +9,7 @@
   const showMessage = (id, text, success = false, placement = "") => { const box = $(id); box.textContent = text; box.className = `message${placement ? ` ${placement}` : ""}${success ? " success" : ""}`; box.hidden = false; };
   const uploadMessage = (text, success = false) => showMessage("analyticsUploadMessage", text, success, "upload-message");
   const message = (text, success = false) => showMessage("analyticsMessage", text, success, "generate-message");
+  const hideRequirements = () => { $("analyticsRequirements").hidden = true; };
   const track = eventName => { try { window.AcadPulseAnalytics?.trackEvent(eventName); } catch (_) { /* Telemetry cannot interrupt local processing. */ } };
 
   document.querySelectorAll(".module-tab").forEach(button => button.addEventListener("click", () => {
@@ -25,6 +26,7 @@
     $("analyticsDashboard").hidden = true; $("analyticsFileSummary").hidden = true;
     $("analyticsMessage").hidden = true;
     $("analyticsUploadMessage").hidden = true;
+    hideRequirements();
     $("analyticsConfigCard").classList.add("locked"); $("analyticsGenerate").disabled = true;
     try {
       if (!file || !file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Invalid workbook. Choose an .xlsx result workbook.");
@@ -58,6 +60,7 @@
   }
   function generate() {
     invalidateGeneratedDashboard();
+    hideRequirements();
     try {
       if (!state.structure) throw new Error("Upload a valid result workbook first.");
       const examName = $("analyticsExamName").value.trim(), academicYear = $("analyticsYear").value.trim();
@@ -69,7 +72,7 @@
       $("dashboardTitle").textContent = examName; $("dashboardSubtitle").textContent = `${academicYear} · ${state.structure.subjects.length} subjects · Maximum ${format(state.configuration.maximumMarks)} · Pass mark ${format(state.configuration.passMark)}`;
       $("analyticsDashboard").hidden = false; render(); $("analyticsDashboard").scrollIntoView({ behavior: "smooth" });
       message("Dashboard generated. Class and Gender filters update every visual immediately.", true); track("result_dashboard_generated");
-    } catch (error) { message(error.message); track("result_analytics_error"); }
+    } catch (error) { message(error.message); $("analyticsRequirements").hidden = error.code !== "WORKBOOK_ROW_VALIDATION"; track("result_analytics_error"); }
   }
 
   function barChart(items, labelKey, valueKey, color = "#197052") {
