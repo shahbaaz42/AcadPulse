@@ -39,17 +39,22 @@
     const columns = Object.fromEntries(Object.entries(ALIASES).map(([key, aliases]) => [key, columnFor(headers, aliases)]));
     if (columns.className < 0) throw new Error("Missing Class. Add a Class column to the workbook.");
     if (columns.gender < 0) throw new Error("Missing Gender. Add a Gender column to the workbook.");
-    const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) =>
-      Array.isArray(row) && row.some(value => String(value ?? "").trim() !== "")
+    const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) =>
+      name && index > columns.name && index < columns.className && !metadata.has(normalizeHeader(name))
     );
+    const meaningful = (row, column) => column >= 0 && String(row?.[column] ?? "").trim() !== "";
+    const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) => {
+      if (!Array.isArray(row)) return false;
+      const roll = columns.roll < 0 ? "" : String(row[columns.roll] ?? "").trim();
+      return meaningful(row, columns.name) || meaningful(row, columns.admission) || meaningful(row, columns.className) ||
+        meaningful(row, columns.gender) || subjects.some(subject => meaningful(row, subject.index)) ||
+        (roll !== "" && Number.isFinite(Number(roll)));
+    });
     const dataRows = studentRows.map(entry => entry.row), dataRowNumbers = studentRows.map(entry => entry.excelRow);
     if (!dataRows.length) throw new Error("The workbook contains no student rows.");
     const requiredColumns = [columns.name, columns.admission, columns.className, columns.gender];
     const invalidMetadataIndex = dataRows.findIndex(row => requiredColumns.some(column => column < 0 || !String(row[column] ?? "").trim()));
     if (invalidMetadataIndex >= 0) throw workbookRowError(dataRowNumbers[invalidMetadataIndex]);
-    const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) =>
-      name && index > columns.name && index < columns.className && !metadata.has(normalizeHeader(name))
-    );
     if (!subjects.length) throw new Error("No subject columns were detected.");
     return { headerIndex, headers, columns, subjects, dataRows, dataRowNumbers };
   }

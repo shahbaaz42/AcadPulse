@@ -75,7 +75,7 @@ test("metadata is validated before subject marks",()=>{
   const rows=[["Student Name","Admission Number","Math","Class","Gender"],["Valid","A1",45,"X A","BOY"],["","A2","not numeric","X A","BOY"]];
   assert.throws(()=>core.deriveStudents(core.detectResultStructure(rows),{maximumMarks:100,passMark:33}),error=>error.message==="Please check the details in Excel row 3.");
   const source=fs.readFileSync("result-analytics-core.js","utf8");
-  assert.ok(source.indexOf("invalidMetadataIndex") < source.indexOf("const subjects"));
+  assert.ok(source.indexOf("invalidMetadataIndex") < source.indexOf("if (!subjects.length)"));
 });
 test("intended subject headers are never dropped because their data is invalid",()=>{
   const header=["Student Name","Admission Number","Valid Subject","Blank Subject","Text Subject","Class","Gender"];
@@ -97,6 +97,34 @@ test("missing metadata wins over invalid subject data during structure detection
 test("a workbook with genuinely no subject headers reports a structural error",()=>{
   const rows=[["Student Name","Admission Number","Class","Gender"],["Student","A1","X A","BOY"]];
   assert.throws(()=>core.detectResultStructure(rows),/No subject columns were detected\./);
+});
+test("footer notes, signatures, summaries, and blank rows are not student rows",()=>{
+  const rows=[
+    ["ROLLNO","ADMNO","STUDENT NAME","Science","Class","Gender","Remarks"],
+    [1,"A1","Student",75,"X A","BOY",""],
+    [],
+    ["Prepared by Class Teacher"],
+    ["Signature"],
+    ["Total Students: 1"],
+    ["","","","","","","Checked and approved"]
+  ];
+  const detected=core.detectResultStructure(rows);
+  assert.strictEqual(detected.dataRows.length,1);
+  assert.deepStrictEqual(detected.dataRowNumbers,[2]);
+  assert.doesNotThrow(()=>core.deriveStudents(detected,{maximumMarks:100,passMark:33}));
+});
+test("partially malformed student records remain included and keep their true Excel rows",()=>{
+  const rows=[
+    ["Report"],
+    ["ROLLNO","ADMNO","STUDENT NAME","Science","Class","Gender","Remarks"],
+    [1,"A1","Valid",75,"X A","BOY",""],
+    [],
+    ["Prepared by Class Teacher"],
+    [2,"A2","",60,"X A","GIRL",""],
+    [3,"","Missing admission",55,"X A","BOY",""]
+  ];
+  assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 6.");
+  assert.throws(()=>core.detectResultStructure([rows[1],rows[2],rows[6]]),error=>error.message==="Please check the details in Excel row 3.");
 });
 test("fully populated Class and Gender values are accepted and trimmed during derivation",()=>{
   const completeRows=[["Student Name","Admission Number","Math","Class","Gender"],["Complete"," A1 ",45," X A "," BOY "]];
