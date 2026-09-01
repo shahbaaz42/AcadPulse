@@ -147,12 +147,17 @@ test("partially malformed student records remain included and keep their true Ex
   ];
   assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 6.");
 });
-test("separate Class and Section fields are both required and combined for filtering",()=>{
+test("combined and separate Class & Section formats normalize for filtering",()=>{
+  const combinedWithoutSection=[["ADMNO","STUDENT NAME","Math","Class"],["A1","Combined",45,"X BA"]];
+  assert.strictEqual(core.deriveStudents(core.detectResultStructure(combinedWithoutSection),{maximumMarks:100,passMark:33})[0].className,"X BA");
+  const combinedBlankSection=[["ADMNO","STUDENT NAME","Math","Class","Section"],["A1","Combined",45,"X BA",""]];
+  assert.strictEqual(core.deriveStudents(core.detectResultStructure(combinedBlankSection),{maximumMarks:100,passMark:33})[0].className,"X BA");
   const rows=[["ADMNO","STUDENT NAME","Math","Class","Section","Gender"],["A1","Student",45,"X","BA",""]];
   const detected=core.detectResultStructure(rows), [student]=core.deriveStudents(detected,{maximumMarks:100,passMark:33});
   assert.strictEqual(student.className,"X BA");
   assert.strictEqual(core.filterStudents([student],{className:"X BA"}).length,1);
   assert.throws(()=>core.detectResultStructure([rows[0],["A2","Missing section",50,"X","",""]]),error=>error.message==="Please check the details in Excel row 2.");
+  assert.throws(()=>core.detectResultStructure([rows[0],["A3","Missing class",50,"","BA",""]]),error=>error.message==="Please check the details in Excel row 2.");
 });
 test("optional metadata warnings use true Excel rows and never remove students",()=>{
   const rows=[["ADMNO","STUDENT NAME","Math","Class","Gender","ROLLNO"],...Array.from({length:62},(_,index)=>[`A${index+1}`,`Student ${index+1}`,50,"X A","BOY",index+1])];
@@ -290,6 +295,7 @@ test("dropping a workbook clears the picker so its previous file can be reselect
   const results=core.deriveStudents(source,{maximumMarks:100,passMark:33});
   const summary=core.summarize(results,source.subjects);
   test("reference workbook dynamically detects its six subjects",()=>assert.deepStrictEqual(source.subjects.map(s=>s.name),["Science","Social","Lang II","English","Maths","Arabic"]));
+  test("reference workbook combined Class values remain unchanged",()=>assert.deepStrictEqual([...new Set(results.map(student=>student.className))],["X BA","X BB","X BC","X GA","X GB","X GC"]));
   test("reference workbook reproduces Page 1 KPIs",()=>{
     assert.strictEqual(summary.totalStudents,215); assert.strictEqual(summary.passed,114); assert.strictEqual(core.round2(summary.passPercentage),53.02);
     assert.strictEqual(summary.present,208); assert.strictEqual(core.round2(summary.presentPercentage),96.74);
