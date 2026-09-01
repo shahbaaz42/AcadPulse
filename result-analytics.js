@@ -11,6 +11,8 @@
   const message = (text, success = false) => showMessage("analyticsMessage", text, success, "generate-message");
   const hideRequirements = () => { $("analyticsRequirements").hidden = true; };
   const showRequirementsAfter = messageId => { const requirements = $("analyticsRequirements"); $(messageId).insertAdjacentElement("afterend", requirements); requirements.hidden = false; };
+  const clearWarnings = () => { $("analyticsWarnings").hidden = true; $("analyticsWarningLines").textContent = ""; };
+  const showWarnings = warnings => { $("analyticsWarningLines").innerHTML = warnings.map(warning => `<p>${escapeHtml(warning)}</p>`).join(""); $("analyticsWarnings").hidden = !warnings.length; };
   const track = eventName => { try { window.AcadPulseAnalytics?.trackEvent(eventName); } catch (_) { /* Telemetry cannot interrupt local processing. */ } };
 
   document.querySelectorAll(".module-tab").forEach(button => button.addEventListener("click", () => {
@@ -28,6 +30,7 @@
     $("analyticsMessage").hidden = true;
     $("analyticsUploadMessage").hidden = true;
     hideRequirements();
+    clearWarnings();
     $("analyticsConfigCard").classList.add("locked"); $("analyticsGenerate").disabled = true;
     try {
       if (!file || !file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Invalid workbook. Choose an .xlsx result workbook.");
@@ -39,12 +42,9 @@
       if (!state.loadGuard.isCurrent(loadId)) return;
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const structure = core.detectResultStructure(XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true }));
-      const classes = new Set(structure.dataRows.map(row => String(row[structure.columns.className] ?? "").trim()).filter(Boolean));
-      const genders = new Set(structure.dataRows.map(row => String(row[structure.columns.gender] ?? "").trim()).filter(Boolean));
-      if (!classes.size) throw new Error("Missing Class. Student rows must contain Class values.");
-      if (!genders.size) throw new Error("Missing Gender. Student rows must contain Gender values.");
       if (!state.loadGuard.isCurrent(loadId)) return;
       state.structure = structure; state.filename = file.name;
+      showWarnings(core.optionalMetadataWarnings(structure));
       $("analyticsFileSummary").innerHTML = `<div class="file-row"><div><strong>✓ ${escapeHtml(file.name)}</strong><small>${structure.dataRows.length} students · ${structure.subjects.length} dynamically detected subjects</small></div></div><div class="detected">${structure.subjects.map(subject => `<span class="tag">${escapeHtml(subject.name)}</span>`).join("")}</div>`;
       $("analyticsFileSummary").hidden = false; $("analyticsConfigCard").classList.remove("locked"); $("analyticsGenerate").disabled = false;
       uploadMessage("Workbook read locally. Confirm the exam rules, then generate the dashboard.", true); track("result_workbook_uploaded");
@@ -70,6 +70,7 @@
       state.students = core.deriveStudents(state.structure, state.configuration);
       $("analyticsClassFilter").innerHTML = optionList(state.students.map(student => student.className));
       $("analyticsGenderFilter").innerHTML = optionList(state.students.map(student => student.gender));
+      $("analyticsGenderFilterField").hidden = !state.students.some(student => student.gender);
       $("dashboardTitle").textContent = examName; $("dashboardSubtitle").textContent = `${academicYear} · ${state.structure.subjects.length} subjects · Maximum ${format(state.configuration.maximumMarks)} · Pass mark ${format(state.configuration.passMark)}`;
       $("analyticsDashboard").hidden = false; render(); $("analyticsDashboard").scrollIntoView({ behavior: "smooth" });
       message("Dashboard generated. Class and Gender filters update every visual immediately.", true); track("result_dashboard_generated");

@@ -106,6 +106,7 @@
       </article>
       <button id="analyticsGenerate" class="generate" disabled><span>Generate Interactive Dashboard</span><b>→</b></button>
       <div id="analyticsMessage" class="message generate-message" role="alert" hidden></div>
+      <section id="analyticsWarnings" class="warnings-card" aria-labelledby="analyticsWarningsTitle" hidden><h3 id="analyticsWarningsTitle">Data Warnings</h3><div id="analyticsWarningLines"></div></section>
       <section id="analyticsRequirements" class="requirements-card" aria-labelledby="analyticsRequirementsTitle" hidden>
         <h3 id="analyticsRequirementsTitle">Marks Consolidation File Requirements</h3>
         <div class="requirements-scroll" tabindex="0">
@@ -114,8 +115,8 @@
             <tbody>
               <tr><td>Student Name</td><td>Required; must not be blank</td></tr>
               <tr><td>Admission Number</td><td>Required; must not be blank</td></tr>
-              <tr><td>Class</td><td>Required; must not be blank</td></tr>
-              <tr><td>Gender</td><td>Required; must not be blank</td></tr>
+              <tr><td>Class &amp; Section</td><td>Required; use a combined Class value or separate Class and Section values</td></tr>
+              <tr><td>At least one Subject</td><td>Required</td></tr>
               <tr><td>Subject Mark</td><td>Required; must be numeric</td></tr>
               <tr><td>Blank / whitespace-only mark</td><td>Not allowed</td></tr>
               <tr><td>Negative mark</td><td>Not allowed</td></tr>
@@ -125,6 +126,10 @@
               <tr><td>Mark equal to Maximum Marks</td><td>Allowed</td></tr>
               <tr><td>Maximum Marks</td><td>Must be numeric and greater than 0</td></tr>
               <tr><td>Pass Mark</td><td>Must be numeric, greater than 0, and not exceed Maximum Marks</td></tr>
+              <tr><td>Roll Number</td><td>Optional</td></tr>
+              <tr><td>Gender</td><td>Optional</td></tr>
+              <tr><td>House</td><td>Optional</td></tr>
+              <tr><td>Remarks / Comments / Notes</td><td>Optional</td></tr>
             </tbody>
           </table>
         </div>
@@ -135,7 +140,7 @@
       <div class="dashboard-heading"><div><span class="eyebrow">PAGE 1 · OVERALL SUMMARY</span><h2 id="dashboardTitle">Result Analytics Dashboard</h2><p id="dashboardSubtitle"></p></div><span class="local-badge">● Browser-local analysis</span></div>
       <div class="dashboard-filters">
         <label>Class<select id="analyticsClassFilter"><option>All</option></select></label>
-        <label>Gender<select id="analyticsGenderFilter"><option>All</option></select></label>
+        <label id="analyticsGenderFilterField">Gender<select id="analyticsGenderFilter"><option>All</option></select></label>
         <button id="analyticsResetFilters" class="filter-reset" type="button">Reset filters</button>
         <span id="filterCount" aria-live="polite"></span>
       </div>

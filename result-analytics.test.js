@@ -49,26 +49,26 @@ test("class filter works",()=>assert.strictEqual(core.filterStudents(students,{c
 test("gender filter works",()=>assert.strictEqual(core.filterStudents(students,{gender:"BOY"}).length,2));
 test("combined Class and Gender filters use AND logic",()=>assert.deepStrictEqual(core.filterStudents(students,{className:"X B",gender:"BOY"}).map(s=>s.name),["Absent"]));
 test("missing required metadata and empty data report clear errors",()=>{
-  assert.throws(()=>core.detectResultStructure([["Name","Math","Gender"],["A",2,"GIRL"]]),/Missing Class/);
-  assert.throws(()=>core.detectResultStructure([["Name","Class","Gender","Math"]]),/no student rows/i);
+  assert.throws(()=>core.detectResultStructure([["Admission Number","Name","Math","Gender"],["A1","A",2,"GIRL"]]),/Missing Class/);
+  assert.throws(()=>core.detectResultStructure([["Admission Number","Name","Math","Class"]]),/no student rows/i);
 });
 const rowError = (rows, maximumMarks=100) => assert.throws(
   ()=>core.deriveStudents(core.detectResultStructure(rows),{maximumMarks,passMark:33}),
   error=>error.code==="WORKBOOK_ROW_VALIDATION" && /^Please check the details in Excel row \d+\.$/.test(error.message)
 );
-test("missing and whitespace-only required metadata produce generic row errors",()=>{
+test("missing and whitespace-only required student values produce generic row errors",()=>{
   const header=["Student Name","Admission Number","Math","Class","Gender"];
-  for(const [column,value] of [[0,""],[1,""],[3,""],[4,""],[0," \t "],[1," \t "],[3," \t "],[4," \t "]]) {
+  for(const [column,value] of [[0,""],[3,""],[0," \t "],[3," \t "]]) {
     const student=["Student","A1",45,"X A","BOY"]; student[column]=value;
     rowError([header,student]);
   }
 });
 test("Admission Number column and per-student values remain required",()=>{
   const missingColumn=[["Student Name","Math","Class","Gender"],["Student",45,"X A","BOY"]];
-  assert.throws(()=>core.detectResultStructure(missingColumn),error=>error.message==="Please check the details in Excel row 2.");
+  assert.throws(()=>core.detectResultStructure(missingColumn),/Missing Admission Number/);
   for(const admission of [""," \t "]){
-    const rows=[["Admission Number","Student Name","Math","Class","Gender"],[admission,"Student",45,"X A","BOY"]];
-    assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 2.");
+    const rows=[["Admission Number","Student Name","Math","Class","Gender"],["A1","Valid",45,"X A","BOY"],[admission,"Not a student",45,"X A","BOY"]];
+    assert.strictEqual(core.detectResultStructure(rows).dataRows.length,1);
   }
 });
 test("metadata is validated before subject marks",()=>{
@@ -128,13 +128,12 @@ test("subject-only averages, totals, and footer values are not student rows",()=
   assert.deepStrictEqual(detected.dataRowNumbers,[2]);
   assert.doesNotThrow(()=>core.deriveStudents(detected,{maximumMarks:100,passMark:33}));
 });
-test("credible malformed student identifiers are included without subject-cell evidence",()=>{
+test("Admission Number alone identifies malformed student records",()=>{
   const header=["ROLLNO","ADMNO","STUDENT NAME","Science","Class","Gender"];
   const missingName=[header,[1,"A1","",55,"X A","BOY"]];
-  const missingAdmission=[header,[2,"","Student",60,"X A","GIRL"]];
-  const rollClassGender=[header,["R-3","","",65,"X A","BOY"]];
-  for(const rows of [missingName,missingAdmission,rollClassGender])
-    assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 2.");
+  assert.throws(()=>core.detectResultStructure(missingName),error=>error.message==="Please check the details in Excel row 2.");
+  const ignored=core.detectResultStructure([header,[1,"A1","Valid",70,"X A","BOY"],[2,"","Student",60,"X A","GIRL"],["R-3","","",65,"X A","BOY"]]);
+  assert.strictEqual(ignored.dataRows.length,1);
 });
 test("partially malformed student records remain included and keep their true Excel rows",()=>{
   const rows=[
@@ -147,7 +146,27 @@ test("partially malformed student records remain included and keep their true Ex
     [3,"","Missing admission",55,"X A","BOY",""]
   ];
   assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 6.");
-  assert.throws(()=>core.detectResultStructure([rows[1],rows[2],rows[6]]),error=>error.message==="Please check the details in Excel row 3.");
+});
+test("separate Class and Section fields are both required and combined for filtering",()=>{
+  const rows=[["ADMNO","STUDENT NAME","Math","Class","Section","Gender"],["A1","Student",45,"X","BA",""]];
+  const detected=core.detectResultStructure(rows), [student]=core.deriveStudents(detected,{maximumMarks:100,passMark:33});
+  assert.strictEqual(student.className,"X BA");
+  assert.strictEqual(core.filterStudents([student],{className:"X BA"}).length,1);
+  assert.throws(()=>core.detectResultStructure([rows[0],["A2","Missing section",50,"X","",""]]),error=>error.message==="Please check the details in Excel row 2.");
+});
+test("optional metadata warnings use true Excel rows and never remove students",()=>{
+  const rows=[["ADMNO","STUDENT NAME","Math","Class","Gender","ROLLNO"],...Array.from({length:62},(_,index)=>[`A${index+1}`,`Student ${index+1}`,50,"X A","BOY",index+1])];
+  for(const excelRow of [25,37,63]) rows[excelRow-1][4]="";
+  for(const excelRow of [14,43]) rows[excelRow-1][5]="";
+  const detected=core.detectResultStructure(rows), derived=core.deriveStudents(detected,{maximumMarks:100,passMark:33});
+  assert.strictEqual(derived.length,62);
+  assert.deepStrictEqual(core.optionalMetadataWarnings(detected),["Gender is missing in Excel rows 25, 37 & 63.","Roll No is missing in Excel rows 14 & 43."]);
+});
+test("absent Gender and Roll Number columns are informational only",()=>{
+  const rows=[["ADMNO","STUDENT NAME","Math","Class"],["A1","Student",50,"X A"]];
+  const detected=core.detectResultStructure(rows);
+  assert.strictEqual(core.deriveStudents(detected,{maximumMarks:100,passMark:33}).length,1);
+  assert.deepStrictEqual(core.optionalMetadataWarnings(detected),["Gender column is not available in this file.","Roll No column is not available in this file."]);
 });
 test("fully populated Class and Gender values are accepted and trimmed during derivation",()=>{
   const completeRows=[["Student Name","Admission Number","Math","Class","Gender"],["Complete"," A1 ",45," X A "," BOY "]];
@@ -221,6 +240,15 @@ test("requirements table is complete, responsive, and cleared after successful p
   assert.match(controller,/showRequirementsAfter\("analyticsUploadMessage"\)/);
   assert.match(controller,/showRequirementsAfter\("analyticsMessage"\)/);
   assert.match(controller,/insertAdjacentElement\("afterend", requirements\)/);
+});
+test("optional-data warnings are distinct, persist through generation, and reset on upload",()=>{
+  const html=fs.readFileSync("index.html","utf8"), css=fs.readFileSync("result-analytics.css","utf8"), controller=fs.readFileSync("result-analytics.js","utf8");
+  assert.match(html,/id="analyticsWarnings"[^>]*hidden><h3[^>]*>Data Warnings<\/h3>/);
+  assert.match(css,/\.warnings-card\{[^}]*background:#fff9e8[^}]*border-left:4px solid #d79a16/);
+  assert.match(controller,/clearWarnings\(\);\s*\$\("analyticsConfigCard"\)/);
+  assert.match(controller,/showWarnings\(core\.optionalMetadataWarnings\(structure\)\)/);
+  assert.doesNotMatch(controller.match(/function generate\(\)[\s\S]*?function barChart/)[0],/clearWarnings/);
+  assert.match(controller,/analyticsGenderFilterField"\)\.hidden = !state\.students\.some\(student => student\.gender\)/);
 });
 test("dropping a workbook clears the picker so its previous file can be reselected",()=>{
   const controllerSource=fs.readFileSync("result-analytics.js","utf8");
