@@ -113,6 +113,29 @@ test("footer notes, signatures, summaries, and blank rows are not student rows",
   assert.deepStrictEqual(detected.dataRowNumbers,[2]);
   assert.doesNotThrow(()=>core.deriveStudents(detected,{maximumMarks:100,passMark:33}));
 });
+test("subject-only averages, totals, and footer values are not student rows",()=>{
+  const rows=[
+    ["ROLLNO","ADMNO","STUDENT NAME","Science","Social","Maths","Class","Gender","Remarks"],
+    [1,"A1","Student",75,68,80,"X A","BOY",""],
+    ["","","",56.2,61.5,48.7,"","",""],
+    ["","","",75,68,80,"","",""],
+    ["Footer label","","",10,20,30,"","",""],
+    ["","","","",42,"","","",""],
+    []
+  ];
+  const detected=core.detectResultStructure(rows);
+  assert.strictEqual(detected.dataRows.length,1);
+  assert.deepStrictEqual(detected.dataRowNumbers,[2]);
+  assert.doesNotThrow(()=>core.deriveStudents(detected,{maximumMarks:100,passMark:33}));
+});
+test("credible malformed student identifiers are included without subject-cell evidence",()=>{
+  const header=["ROLLNO","ADMNO","STUDENT NAME","Science","Class","Gender"];
+  const missingName=[header,[1,"A1","",55,"X A","BOY"]];
+  const missingAdmission=[header,[2,"","Student",60,"X A","GIRL"]];
+  const rollClassGender=[header,["R-3","","",65,"X A","BOY"]];
+  for(const rows of [missingName,missingAdmission,rollClassGender])
+    assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 2.");
+});
 test("partially malformed student records remain included and keep their true Excel rows",()=>{
   const rows=[
     ["Report"],

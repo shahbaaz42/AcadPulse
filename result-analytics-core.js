@@ -45,10 +45,9 @@
     const meaningful = (row, column) => column >= 0 && String(row?.[column] ?? "").trim() !== "";
     const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) => {
       if (!Array.isArray(row)) return false;
-      const roll = columns.roll < 0 ? "" : String(row[columns.roll] ?? "").trim();
-      return meaningful(row, columns.name) || meaningful(row, columns.admission) || meaningful(row, columns.className) ||
-        meaningful(row, columns.gender) || subjects.some(subject => meaningful(row, subject.index)) ||
-        (roll !== "" && Number.isFinite(Number(roll)));
+      const hasRoll = meaningful(row, columns.roll);
+      return meaningful(row, columns.name) || meaningful(row, columns.admission) ||
+        (hasRoll && (meaningful(row, columns.className) || meaningful(row, columns.gender)));
     });
     const dataRows = studentRows.map(entry => entry.row), dataRowNumbers = studentRows.map(entry => entry.excelRow);
     if (!dataRows.length) throw new Error("The workbook contains no student rows.");
