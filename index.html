@@ -114,15 +114,15 @@
             <thead><tr><th>Field / Rule</th><th>Requirement</th></tr></thead>
             <tbody>
               <tr><td>Student Name</td><td>Required; must not be blank</td></tr>
-              <tr><td>Admission Number</td><td>Required; must not be blank</td></tr>
-              <tr><td>Class &amp; Section</td><td>Required; use a combined Class value or separate Class and Section values</td></tr>
+              <tr><td>ADMNO</td><td>Required for every student; must be unique</td></tr>
+              <tr><td>Class &amp; Section</td><td>Required in one combined column, e.g. X BA or Grade 10 A</td></tr>
               <tr><td>At least one Subject</td><td>Required</td></tr>
               <tr><td>Subject Mark</td><td>Required; must be numeric</td></tr>
               <tr><td>Blank / whitespace-only mark</td><td>Not allowed</td></tr>
               <tr><td>Negative mark</td><td>Not allowed</td></tr>
               <tr><td>Mark above Maximum Marks</td><td>Not allowed</td></tr>
               <tr><td>Zero mark</td><td>Allowed; handled by the existing ABSENT rule</td></tr>
-              <tr><td>Decimal mark</td><td>Allowed when between 0 and Maximum Marks</td></tr>
+              <tr><td>Decimal mark</td><td>Validated before rounding, then rounded to the nearest whole mark</td></tr>
               <tr><td>Mark equal to Maximum Marks</td><td>Allowed</td></tr>
               <tr><td>Maximum Marks</td><td>Must be numeric and greater than 0</td></tr>
               <tr><td>Pass Mark</td><td>Must be numeric, greater than 0, and not exceed Maximum Marks</td></tr>
@@ -130,6 +130,7 @@
               <tr><td>Gender</td><td>Optional</td></tr>
               <tr><td>House</td><td>Optional</td></tr>
               <tr><td>Remarks / Comments / Notes</td><td>Optional</td></tr>
+              <tr><td>Other columns</td><td>Ignored outside the subject region</td></tr>
             </tbody>
           </table>
         </div>

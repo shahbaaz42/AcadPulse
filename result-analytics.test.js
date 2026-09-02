@@ -12,9 +12,9 @@ const students = core.deriveStudents(structure,{maximumMarks:100,passMark:33});
 test("metadata aliases are detected",()=>assert.deepStrictEqual(structure.columns,{roll:0,admission:1,name:2,className:5,section:-1,gender:6,house:-1}));
 test("subjects are detected dynamically by excluding metadata",()=>assert.deepStrictEqual(structure.subjects.map(s=>s.name),["Physics","Art"]));
 test("House uses Scoreboard-compatible metadata recognition and is never treated as a subject",()=>{
-  const houseRows=[["Roll Number","Admission Number","Student Name","HOUSE","Science","Social","Class","Gender"],[1,"A1","Student","Red House",75,68,"X A","BOY"]];
+  const houseRows=[["Roll Number","Admission Number","Student Name","Science","Social","Class","Gender","HOUSE"],[1,"A1","Student",75,68,"X A","BOY","Red House"]];
   const houseStructure=core.detectResultStructure(houseRows);
-  assert.strictEqual(houseStructure.columns.house,3);
+  assert.strictEqual(houseStructure.columns.house,7);
   assert.deepStrictEqual(houseStructure.subjects.map(subject=>subject.name),["Science","Social"]);
   const [houseStudent]=core.deriveStudents(houseStructure,{maximumMarks:100,passMark:33});
   assert.deepStrictEqual(houseStudent.marks,[75,68]);
@@ -26,9 +26,9 @@ test("the structural subject region excludes trailing ancillary columns",()=>{
   assert.deepStrictEqual(detected.subjects.map(subject=>subject.name),["Science","Social"]);
   assert.deepStrictEqual(core.deriveStudents(detected,{maximumMarks:100,passMark:33})[0].marks,[75,68]);
 });
-test("known remarks, comments, and notes are always ancillary rather than subjects",()=>{
+test("unrelated trailing columns are ignored without special interpretation",()=>{
   for(const ancillary of ["Remarks","Comment","Comments","Note","Notes","Teacher Remark","Teacher Remarks"]){
-    const rows=[["ADMNO","STUDENT NAME","Science",ancillary,"Social","Class","Gender"],["A1","Student",75,"free text",68,"X A","BOY"]];
+    const rows=[["ADMNO","STUDENT NAME","Science","Social","Class","Gender",ancillary],["A1","Student",75,68,"X A","BOY","free text"]];
     const detected=core.detectResultStructure(rows);
     assert.deepStrictEqual(detected.subjects.map(subject=>subject.name),["Science","Social"],ancillary);
     assert.doesNotThrow(()=>core.deriveStudents(detected,{maximumMarks:100,passMark:33}));
@@ -57,9 +57,9 @@ const rowError = (rows, maximumMarks=100) => assert.throws(
   error=>error.code==="WORKBOOK_ROW_VALIDATION" && /^Please check the details in Excel row \d+\.$/.test(error.message)
 );
 test("missing and whitespace-only required student values produce generic row errors",()=>{
-  const header=["Student Name","Admission Number","Math","Class","Gender"];
-  for(const [column,value] of [[0,""],[3,""],[0," \t "],[3," \t "]]) {
-    const student=["Student","A1",45,"X A","BOY"]; student[column]=value;
+  const header=["Admission Number","Student Name","Math","Class","Gender"];
+  for(const [column,value] of [[1,""],[3,""],[1," \t "],[3," \t "]]) {
+    const student=["A1","Student",45,"X A","BOY"]; student[column]=value;
     rowError([header,student]);
   }
 });
@@ -72,30 +72,30 @@ test("Admission Number column and per-student values remain required",()=>{
   }
 });
 test("metadata is validated before subject marks",()=>{
-  const rows=[["Student Name","Admission Number","Math","Class","Gender"],["Valid","A1",45,"X A","BOY"],["","A2","not numeric","X A","BOY"]];
+  const rows=[["Admission Number","Student Name","Math","Class","Gender"],["A1","Valid",45,"X A","BOY"],["A2","","not numeric","X A","BOY"]];
   assert.throws(()=>core.deriveStudents(core.detectResultStructure(rows),{maximumMarks:100,passMark:33}),error=>error.message==="Please check the details in Excel row 3.");
   const source=fs.readFileSync("result-analytics-core.js","utf8");
   assert.ok(source.indexOf("invalidMetadataIndex") < source.indexOf("if (!subjects.length)"));
 });
 test("intended subject headers are never dropped because their data is invalid",()=>{
-  const header=["Student Name","Admission Number","Valid Subject","Blank Subject","Text Subject","Class","Gender"];
-  const rows=[header,["Student","A1",45,"","not numeric","X A","BOY"]];
+  const header=["Admission Number","Student Name","Valid Subject","Blank Subject","Text Subject","Class","Gender"];
+  const rows=[header,["A1","Student",45,"","not numeric","X A","BOY"]];
   const intended=core.detectResultStructure(rows);
   assert.deepStrictEqual(intended.subjects.map(subject=>subject.name),["Valid Subject","Blank Subject","Text Subject"]);
   assert.throws(()=>core.deriveStudents(intended,{maximumMarks:100,passMark:33}),error=>error.message==="Please check the details in Excel row 2.");
 });
 test("all-blank intended subjects fail row validation rather than subject detection",()=>{
-  const rows=[["Student Name","Admission Number","Math","Science","Class","Gender"],["Student","A1",""," \t ","X A","BOY"]];
+  const rows=[["Admission Number","Student Name","Math","Science","Class","Gender"],["A1","Student",""," \t ","X A","BOY"]];
   const intended=core.detectResultStructure(rows);
   assert.strictEqual(intended.subjects.length,2);
   assert.throws(()=>core.deriveStudents(intended,{maximumMarks:100,passMark:33}),error=>error.message==="Please check the details in Excel row 2.");
 });
 test("missing metadata wins over invalid subject data during structure detection",()=>{
-  const rows=[["Student Name","Admission Number","Math","Class","Gender"],["","A1","not numeric","X A","BOY"]];
+  const rows=[["Admission Number","Student Name","Math","Class","Gender"],["A1","","not numeric","X A","BOY"]];
   assert.throws(()=>core.detectResultStructure(rows),error=>error.code==="WORKBOOK_ROW_VALIDATION" && error.message==="Please check the details in Excel row 2.");
 });
 test("a workbook with genuinely no subject headers reports a structural error",()=>{
-  const rows=[["Student Name","Admission Number","Class","Gender"],["Student","A1","X A","BOY"]];
+  const rows=[["Admission Number","Student Name","Class","Gender"],["A1","Student","X A","BOY"]];
   assert.throws(()=>core.detectResultStructure(rows),/No subject columns were detected\./);
 });
 test("footer notes, signatures, summaries, and blank rows are not student rows",()=>{
@@ -147,17 +147,21 @@ test("partially malformed student records remain included and keep their true Ex
   ];
   assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 6.");
 });
-test("combined and separate Class & Section formats normalize for filtering",()=>{
+test("Class & Section must be combined in one column",()=>{
   const combinedWithoutSection=[["ADMNO","STUDENT NAME","Math","Class"],["A1","Combined",45,"X BA"]];
   assert.strictEqual(core.deriveStudents(core.detectResultStructure(combinedWithoutSection),{maximumMarks:100,passMark:33})[0].className,"X BA");
   const combinedBlankSection=[["ADMNO","STUDENT NAME","Math","Class","Section"],["A1","Combined",45,"X BA",""]];
   assert.strictEqual(core.deriveStudents(core.detectResultStructure(combinedBlankSection),{maximumMarks:100,passMark:33})[0].className,"X BA");
-  const rows=[["ADMNO","STUDENT NAME","Math","Class","Section","Gender"],["A1","Student",45,"X","BA",""]];
+  const rows=[["ADMNO","STUDENT NAME","Math","Class","Section","Gender"],["A1","Student",45,"X BA","",""]];
   const detected=core.detectResultStructure(rows), [student]=core.deriveStudents(detected,{maximumMarks:100,passMark:33});
   assert.strictEqual(student.className,"X BA");
   assert.strictEqual(core.filterStudents([student],{className:"X BA"}).length,1);
-  assert.throws(()=>core.detectResultStructure([rows[0],["A2","Missing section",50,"X","",""]]),error=>error.message==="Please check the details in Excel row 2.");
+  assert.throws(()=>core.detectResultStructure([rows[0],["A2","Separate unsupported",50,"X","BA",""]]),error=>error.message==="Please check the details in Excel row 2.");
   assert.throws(()=>core.detectResultStructure([rows[0],["A3","Missing class",50,"","BA",""]]),error=>error.message==="Please check the details in Excel row 2.");
+});
+test("duplicate ADMNO values reject the later true Excel row",()=>{
+  const rows=[["Report"],["ADMNO","STUDENT NAME","Math","Class"],["A1","First",45,"X BA"],[],["A1","Duplicate",50,"X BA"]];
+  assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 5.");
 });
 test("optional metadata warnings use true Excel rows and never remove students",()=>{
   const rows=[["ADMNO","STUDENT NAME","Math","Class","Gender","ROLLNO"],...Array.from({length:62},(_,index)=>[`A${index+1}`,`Student ${index+1}`,50,"X A","BOY",index+1])];
@@ -174,7 +178,7 @@ test("absent Gender and Roll Number columns are informational only",()=>{
   assert.deepStrictEqual(core.optionalMetadataWarnings(detected),["Gender column is not available in this file.","Roll No column is not available in this file."]);
 });
 test("fully populated Class and Gender values are accepted and trimmed during derivation",()=>{
-  const completeRows=[["Student Name","Admission Number","Math","Class","Gender"],["Complete"," A1 ",45," X A "," BOY "]];
+  const completeRows=[["Admission Number","Student Name","Math","Class","Gender"],[" A1 ","Complete",45," X A "," BOY "]];
   const completeStructure=core.detectResultStructure(completeRows), [completeStudent]=core.deriveStudents(completeStructure,{maximumMarks:100,passMark:33});
   assert.strictEqual(completeStudent.className,"X A"); assert.strictEqual(completeStudent.gender,"BOY");
 });
@@ -187,40 +191,54 @@ test("mobile stacked topbar can grow beyond the desktop fixed height",()=>{
   assert.match(responsiveCss,/@media\(max-width:750px\)\{\.topbar\{[^}]*height:auto[^}]*flex-direction:column/);
 });
 test("numeric zero and string zero remain valid absent marks",()=>{
-  const zeroRows=[["Student Name","Admission Number","Math","Class","Gender"],["Numeric zero","A1",0,"X A","BOY"],["String zero","A2","0","X A","GIRL"]];
+  const zeroRows=[["Admission Number","Student Name","Math","Class","Gender"],["A1","Numeric zero",0,"X A","BOY"],["A2","String zero","0","X A","GIRL"]];
   const zeroStructure=core.detectResultStructure(zeroRows), zeroStudents=core.deriveStudents(zeroStructure,{maximumMarks:100,passMark:33});
   assert.deepStrictEqual(zeroStudents.map(student=>student.marks[0]),[0,0]);
   assert.deepStrictEqual(zeroStudents.map(student=>student.result),["ABSENT","ABSENT"]);
 });
 test("blank, whitespace-only, and nonnumeric subject marks are rejected",()=>{
   for(const mark of ["","   \t ","not numeric"])
-    rowError([["Student Name","Admission Number","Math","Class","Gender"],["Valid","A1",45,"X A","BOY"],["Invalid","A2",mark,"X A","GIRL"]]);
+    rowError([["Admission Number","Student Name","Math","Class","Gender"],["A1","Valid",45,"X A","BOY"],["A2","Invalid",mark,"X A","GIRL"]]);
 });
 test("whitespace around a valid mark is trimmed before conversion",()=>{
-  const paddedRows=[["Student Name","Admission Number","Math","Class","Gender"],["Padded","A1"," 45 ","X A","BOY"]];
+  const paddedRows=[["Admission Number","Student Name","Math","Class","Gender"],["A1","Padded"," 45 ","X A","BOY"]];
   const paddedStructure=core.detectResultStructure(paddedRows), [paddedStudent]=core.deriveStudents(paddedStructure,{maximumMarks:100,passMark:33});
   assert.strictEqual(paddedStudent.marks[0],45); assert.strictEqual(paddedStudent.totalMarks,45);
 });
 test("negative numeric and numeric-string marks are rejected before calculations",()=>{
   for(const mark of [-1,"-2.5"]){
-    rowError([["Student Name","Admission Number","Math","Class","Gender"],["Negative","A1",mark,"X A","BOY"]]);
+    rowError([["Admission Number","Student Name","Math","Class","Gender"],["A1","Negative",mark,"X A","BOY"]]);
   }
 });
 test("marks at the configured maximum remain valid after string normalization",()=>{
-  const maximumRows=[["Student Name","Admission Number","Math","Class","Gender"],["Numeric maximum","A1",50,"X A","BOY"],["String maximum","A2","50","X A","GIRL"],["Padded maximum","A3"," 50 ","X B","BOY"]];
+  const maximumRows=[["Admission Number","Student Name","Math","Class","Gender"],["A1","Numeric maximum",50,"X A","BOY"],["A2","String maximum","50","X A","GIRL"],["A3","Padded maximum"," 50 ","X B","BOY"]];
   const maximumStructure=core.detectResultStructure(maximumRows), maximumStudents=core.deriveStudents(maximumStructure,{maximumMarks:50,passMark:20});
   assert.deepStrictEqual(maximumStudents.map(student=>student.marks[0]),[50,50,50]);
   assert.deepStrictEqual(maximumStudents.map(student=>student.percentage),[100,100,100]);
 });
 test("decimal marks are valid within range and excessive marks are rejected",()=>{
-  const decimalRows=[["Student Name","Admission Number","Math","Class","Gender"],["Decimal","A1",18.75,"X A","BOY"]];
-  assert.strictEqual(core.deriveStudents(core.detectResultStructure(decimalRows),{maximumMarks:50,passMark:10})[0].marks[0],18.75);
+  const decimalRows=[["Admission Number","Student Name","Math","Class","Gender"],["A1","Decimal",18.75,"X A","BOY"]];
+  assert.strictEqual(core.deriveStudents(core.detectResultStructure(decimalRows),{maximumMarks:50,passMark:10})[0].marks[0],19);
   for(const mark of [50.01,"51"]){
-    rowError([["Student Name","Admission Number","Math","Class","Gender"],["Excessive","A1",mark,"X A","BOY"]],50);
+    rowError([["Admission Number","Student Name","Math","Class","Gender"],["A1","Excessive",mark,"X A","BOY"]],50);
   }
 });
+test("marks are validated before rounding and rounded marks drive all calculations",()=>{
+  const rows=[["ADMNO","STUDENT NAME","Science","Social","English","Class"],["A1","Rounded",45.25,67.75,71.50,"X BA"]];
+  const [student]=core.deriveStudents(core.detectResultStructure(rows),{maximumMarks:100,passMark:46});
+  assert.deepStrictEqual(student.marks,[45,68,72]);
+  assert.strictEqual(student.totalMarks,185);
+  assert.strictEqual(student.percentage,61.67);
+  assert.strictEqual(student.result,"FAIL");
+  const boundary=[["ADMNO","STUDENT NAME","Math","Class"],["A1","Below half",45.49,"X BA"],["A2","At half",45.50,"X BA"]];
+  const rounded=core.deriveStudents(core.detectResultStructure(boundary),{maximumMarks:80,passMark:46});
+  assert.deepStrictEqual(rounded.map(student=>student.marks[0]),[45,46]);
+  assert.deepStrictEqual(rounded.map(student=>student.result),["FAIL","PASS"]);
+  assert.deepStrictEqual(core.rankStudents(rounded).map(student=>student.name),["At half","Below half"]);
+  assert.throws(()=>core.deriveStudents(core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A1","Over",80.4,"X BA"]]),{maximumMarks:80,passMark:40}),error=>error.message==="Please check the details in Excel row 2.");
+});
 test("generic errors preserve the true Excel row including pre-header and blank rows",()=>{
-  const offsetRows=[["Result report"],["Generated locally"],["Student Name","Admission Number","Social","Class","Gender"],["Valid","A1",40,"X A","BOY"],[],["Iqbal Ahmed","A2",101,"X A","BOY"]];
+  const offsetRows=[["Result report"],["Generated locally"],["Admission Number","Student Name","Social","Class","Gender"],["A1","Valid",40,"X A","BOY"],[],["A2","Iqbal Ahmed",101,"X A","BOY"]];
   const offsetStructure=core.detectResultStructure(offsetRows);
   assert.throws(()=>core.deriveStudents(offsetStructure,{maximumMarks:100,passMark:33}),error=>error.message==="Please check the details in Excel row 6.");
 });
@@ -238,7 +256,7 @@ test("generation invalidates stale dashboard output without clearing the loaded 
 });
 test("requirements table is complete, responsive, and cleared after successful processing",()=>{
   const html=fs.readFileSync("index.html","utf8"), css=fs.readFileSync("result-analytics.css","utf8"), controller=fs.readFileSync("result-analytics.js","utf8");
-  for(const text of ["Student Name","Admission Number","Class","Gender","Subject Mark","Blank / whitespace-only mark","Negative mark","Mark above Maximum Marks","Zero mark","Decimal mark","Mark equal to Maximum Marks","Maximum Marks","Pass Mark","Required; must not be blank","Required; must be numeric","Allowed; handled by the existing ABSENT rule","Must be numeric, greater than 0, and not exceed Maximum Marks"]) assert.ok(html.includes(text),text);
+  for(const text of ["ADMNO","Student Name","Class &amp; Section","Gender","House","Other columns","Subject Mark","Blank / whitespace-only mark","Negative mark","Mark above Maximum Marks","Zero mark","Decimal mark","Mark equal to Maximum Marks","Maximum Marks","Pass Mark","Required; must not be blank","Required; must be numeric","Allowed; handled by the existing ABSENT rule","Must be numeric, greater than 0, and not exceed Maximum Marks"]) assert.ok(html.includes(text),text);
   assert.match(html,/id="analyticsRequirements"[^>]*hidden/);
   assert.match(css,/\.requirements-scroll\{[^}]*overflow-x:auto/);
   assert.match(controller,/hideRequirements\(\);\s*try/);
@@ -254,6 +272,8 @@ test("optional-data warnings are distinct, persist through generation, and reset
   assert.match(controller,/showWarnings\(core\.optionalMetadataWarnings\(structure\)\)/);
   assert.doesNotMatch(controller.match(/function generate\(\)[\s\S]*?function barChart/)[0],/clearWarnings/);
   assert.match(controller,/analyticsGenderFilterField"\)\.hidden = !state\.students\.some\(student => student\.gender\)/);
+  assert.match(controller,/minimumFractionDigits: 2, maximumFractionDigits: 2/);
+  assert.match(controller,/formatPercentage\(student\.percentage\)/);
 });
 test("dropping a workbook clears the picker so its previous file can be reselected",()=>{
   const controllerSource=fs.readFileSync("result-analytics.js","utf8");
@@ -299,7 +319,7 @@ test("dropping a workbook clears the picker so its previous file can be reselect
   test("reference workbook reproduces Page 1 KPIs",()=>{
     assert.strictEqual(summary.totalStudents,215); assert.strictEqual(summary.passed,114); assert.strictEqual(core.round2(summary.passPercentage),53.02);
     assert.strictEqual(summary.present,208); assert.strictEqual(core.round2(summary.presentPercentage),96.74);
-    assert.ok(Math.abs(summary.averageMarks-341.11)<0.1,`Average Marks ${summary.averageMarks}`); assert.strictEqual(core.round2(summary.averagePercentage),56.85);
+    assert.strictEqual(core.round2(summary.averageMarks),341.75); assert.strictEqual(core.round2(summary.averagePercentage),56.96);
   });
   console.log(`\n${passed} Result Analytics tests passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1});

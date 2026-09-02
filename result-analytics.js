@@ -6,6 +6,7 @@
   const $ = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[character]));
   const format = value => Number(Number(value).toFixed(2)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const formatPercentage = value => Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const showMessage = (id, text, success = false, placement = "") => { const box = $(id); box.textContent = text; box.className = `message${placement ? ` ${placement}` : ""}${success ? " success" : ""}`; box.hidden = false; };
   const uploadMessage = (text, success = false) => showMessage("analyticsUploadMessage", text, success, "upload-message");
   const message = (text, success = false) => showMessage("analyticsMessage", text, success, "generate-message");
@@ -87,18 +88,18 @@
   function donutChart(items, total) {
     const colors={PASS:"#239366",FAIL:"#d65745",ABSENT:"#e5a62f"}, radius=70, circumference=2*Math.PI*radius; let offset=0;
     const arcs=items.map(item => { const length=total ? item.count/total*circumference : 0, arc=`<circle cx="105" cy="105" r="${radius}" fill="none" stroke="${colors[item.result]}" stroke-width="32" stroke-dasharray="${length} ${circumference-length}" stroke-dashoffset="${-offset}" transform="rotate(-90 105 105)"><title>${item.result}: ${item.count} (${total?format(item.count/total*100):0}%)</title></circle>`; offset+=length; return arc; }).join("");
-    const legend=items.map(item=>`<span><i style="background:${colors[item.result]}"></i><b>${item.result}</b> ${item.count} · ${total?format(item.count/total*100):0}%</span>`).join("");
+    const legend=items.map(item=>`<span><i style="background:${colors[item.result]}"></i><b>${item.result}</b> ${item.count} · ${formatPercentage(total?item.count/total*100:0)}%</span>`).join("");
     return `<div class="donut-layout"><svg viewBox="0 0 210 210" style="width:210px;min-height:210px">${arcs}<text x="105" y="100" text-anchor="middle" font-size="26" font-weight="800" fill="#142b25">${total}</text><text x="105" y="119" text-anchor="middle" font-size="10" fill="#6d7d77">STUDENTS</text></svg><div class="donut-legend">${legend}</div></div>`;
   }
   function renderChart(id, render) { try { $(id).innerHTML = render(); } catch (_) { $(id).innerHTML = '<div class="chart-error">This chart could not be rendered. Workbook calculations remain available.</div>'; } }
   function table(students, rankLabel) {
-    return `<thead><tr><th>${rankLabel}</th><th>ADMNO</th><th>Student Name</th><th>Class</th><th>Total Marks</th><th>Percentage</th></tr></thead><tbody>${students.map(student=>`<tr><td>${student.rank}</td><td>${escapeHtml(student.admission)}</td><td class="name" title="${escapeHtml(student.name)}">${escapeHtml(student.name)}</td><td>${escapeHtml(student.className)}</td><td>${format(student.totalMarks)}</td><td>${format(student.percentage)}%</td></tr>`).join("")}</tbody>`;
+    return `<thead><tr><th>${rankLabel}</th><th>ADMNO</th><th>Student Name</th><th>Class</th><th>Total Marks</th><th>Percentage</th></tr></thead><tbody>${students.map(student=>`<tr><td>${student.rank}</td><td>${escapeHtml(student.admission)}</td><td class="name" title="${escapeHtml(student.name)}">${escapeHtml(student.name)}</td><td>${escapeHtml(student.className)}</td><td>${format(student.totalMarks)}</td><td>${formatPercentage(student.percentage)}%</td></tr>`).join("")}</tbody>`;
   }
   function render() {
     const filters={ className:$("analyticsClassFilter").value, gender:$("analyticsGenderFilter").value };
     const students=core.filterStudents(state.students,filters), summary=core.summarize(students,state.structure.subjects);
     $("analyticsEmpty").hidden=students.length>0; $("filterCount").textContent=`Showing ${students.length} of ${state.students.length} students`;
-    const cards=[["Total Students",summary.totalStudents],["Passed",summary.passed],["Pass %",`${format(summary.passPercentage)}%`],["Present",summary.present],["Present %",`${format(summary.presentPercentage)}%`],["Average Marks",format(summary.averageMarks)],["Average %",`${format(summary.averagePercentage)}%`]];
+    const cards=[["Total Students",summary.totalStudents],["Passed",summary.passed],["Pass %",`${formatPercentage(summary.passPercentage)}%`],["Present",summary.present],["Present %",`${formatPercentage(summary.presentPercentage)}%`],["Average Marks",format(summary.averageMarks)],["Average %",`${formatPercentage(summary.averagePercentage)}%`]];
     $("kpiGrid").innerHTML=cards.map(([label,value])=>`<article class="kpi-card"><small>${label}</small><strong>${value}</strong></article>`).join("");
     renderChart("subjectChart",()=>barChart([...summary.subjectAverages].sort((a,b)=>b.value-a.value),"subject","value")); renderChart("resultChart",()=>donutChart(summary.resultDistribution,summary.totalStudents)); renderChart("rangeChart",()=>barChart(summary.ranges,"label","count","#74a51f"));
     $("topStudents").innerHTML=table(summary.top,"Rank"); $("supportStudents").innerHTML=table(summary.bottom,"Sr. No");

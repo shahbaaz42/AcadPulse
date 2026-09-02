@@ -60,9 +60,11 @@ Parsing, calculations, preview generation and Excel creation happen in the user'
 
 ### Workflow and source workbook
 
-Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. A non-blank **Admission Number** identifies a student row. Every identified student must also provide **Student Name** and **Class & Section** information, either as a combined Class value or separate Class and Section values. At least one subject is required. Roll Number, Gender, House, Remarks, Comments, Notes and Teacher Remarks are optional metadata and are not treated as subjects; missing Roll Number or Gender values produce non-blocking data warnings. Non-empty, non-metadata headers between Student Name and Class are detected dynamically as subjects, regardless of their cell contents, so invalid or blank marks are reported rather than silently dropping a subject.
+Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. The expected order is **Roll No | ADMNO | Student Name | Subjects | Class & Section | Gender | House**. A non-blank, unique **ADMNO** identifies a student row. Every identified student must also provide **Student Name** and one combined **Class & Section** value such as `X BA` or `Grade 10 A`. At least one subject header is required between Student Name and Class & Section. Roll Number, Gender and House are optional; unrelated columns outside the subject region are ignored.
 
 Phase 1 uses one configurable **Maximum Marks** and **Pass Mark** for every detected subject. Exam Name and Academic Year identify the dashboard. The included reference workbook uses Maximum Marks `100` and Pass Mark `33`; teachers can change both for other exams.
+
+Each source mark is validated before rounding, so a decimal above Maximum Marks is rejected rather than rounded into range. Valid marks are rounded to the nearest whole number with standard JavaScript rounding; those rounded marks are authoritative for results, totals, averages, percentages, distributions and rankings. Percentage displays use exactly two decimal places.
 
 ### Calculations
 
