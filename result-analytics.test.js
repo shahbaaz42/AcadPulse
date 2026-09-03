@@ -49,7 +49,7 @@ test("class filter works",()=>assert.strictEqual(core.filterStudents(students,{c
 test("gender filter works",()=>assert.strictEqual(core.filterStudents(students,{gender:"BOY"}).length,2));
 test("combined Class and Gender filters use AND logic",()=>assert.deepStrictEqual(core.filterStudents(students,{className:"X B",gender:"BOY"}).map(s=>s.name),["Absent"]));
 test("missing required metadata and empty data report clear errors",()=>{
-  assert.throws(()=>core.detectResultStructure([["Admission Number","Name","Math","Gender"],["A1","A",2,"GIRL"]]),/Missing Class/);
+  assert.throws(()=>core.detectResultStructure([["Admission Number","Name","Math","Gender"],["A1","A",2,"GIRL"]]),error=>error.message==="Missing Class & Section. Add a combined Class & Section column, for example X BA or Grade 10 A." && !/separate/i.test(error.message));
   assert.throws(()=>core.detectResultStructure([["Admission Number","Name","Math","Class"]]),/no student rows/i);
 });
 const rowError = (rows, maximumMarks=100) => assert.throws(
@@ -158,6 +158,8 @@ test("Class & Section must be combined in one column",()=>{
   assert.strictEqual(core.filterStudents([student],{className:"X BA"}).length,1);
   assert.throws(()=>core.detectResultStructure([rows[0],["A2","Separate unsupported",50,"X","BA",""]]),error=>error.message==="Please check the details in Excel row 2.");
   assert.throws(()=>core.detectResultStructure([rows[0],["A3","Missing class",50,"","BA",""]]),error=>error.message==="Please check the details in Excel row 2.");
+  assert.doesNotThrow(()=>core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A4","Grade",50,"Grade 10 A"]]));
+  assert.throws(()=>core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A5","Incomplete",50,"Grade 10"]]),error=>error.message==="Please check the details in Excel row 2.");
 });
 test("duplicate ADMNO values reject the later true Excel row",()=>{
   const rows=[["Report"],["ADMNO","STUDENT NAME","Math","Class"],["A1","First",45,"X BA"],[],["A1","Duplicate",50,"X BA"]];
@@ -182,9 +184,10 @@ test("fully populated Class and Gender values are accepted and trimmed during de
   const completeStructure=core.detectResultStructure(completeRows), [completeStudent]=core.deriveStudents(completeStructure,{maximumMarks:100,passMark:33});
   assert.strictEqual(completeStudent.className,"X A"); assert.strictEqual(completeStudent.gender,"BOY");
 });
-test("configuration rejects nonnumeric, nonpositive, and excessive values",()=>{
-  for(const maximum of ["", "abc", 0, -1]) assert.throws(()=>core.validateRules(maximum,1),/Maximum Marks/);
-  for(const pass of ["", "abc", 0, -1, 51]) assert.throws(()=>core.validateRules(50,pass),/Pass Mark/);
+test("configuration requires positive whole-number Maximum Marks and Pass Mark",()=>{
+  assert.deepStrictEqual(core.validateRules(50,20),{maximumMarks:50,passMark:20});
+  for(const maximum of ["", "abc", 0, -1, 50.6]) assert.throws(()=>core.validateRules(maximum,1),/Maximum Marks/);
+  for(const pass of ["", "abc", 0, -1, 20.5, 51]) assert.throws(()=>core.validateRules(50,pass),/Pass Mark/);
 });
 test("mobile stacked topbar can grow beyond the desktop fixed height",()=>{
   const responsiveCss=fs.readFileSync("result-analytics.css","utf8");
@@ -256,7 +259,7 @@ test("generation invalidates stale dashboard output without clearing the loaded 
 });
 test("requirements table is complete, responsive, and cleared after successful processing",()=>{
   const html=fs.readFileSync("index.html","utf8"), css=fs.readFileSync("result-analytics.css","utf8"), controller=fs.readFileSync("result-analytics.js","utf8");
-  for(const text of ["ADMNO","Student Name","Class &amp; Section","Gender","House","Other columns","Subject Mark","Blank / whitespace-only mark","Negative mark","Mark above Maximum Marks","Zero mark","Decimal mark","Mark equal to Maximum Marks","Maximum Marks","Pass Mark","Required; must not be blank","Required; must be numeric","Allowed; handled by the existing ABSENT rule","Must be numeric, greater than 0, and not exceed Maximum Marks"]) assert.ok(html.includes(text),text);
+  for(const text of ["ADMNO","Student Name","Class &amp; Section","Gender","House","Other columns","Subject Mark","Blank / whitespace-only mark","Negative mark","Mark above Maximum Marks","Zero mark","Decimal mark","Mark equal to Maximum Marks","Maximum Marks","Pass Mark","Required; must not be blank","Required; must be numeric","Allowed; handled by the existing ABSENT rule","Required; must be a positive whole number","Required; must be a positive whole number and not exceed Maximum Marks"]) assert.ok(html.includes(text),text);
   assert.match(html,/id="analyticsRequirements"[^>]*hidden/);
   assert.match(css,/\.requirements-scroll\{[^}]*overflow-x:auto/);
   assert.match(controller,/hideRequirements\(\);\s*try/);

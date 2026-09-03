@@ -100,8 +100,8 @@
         <div class="analytics-config-grid">
           <label>Exam Name<input id="analyticsExamName" placeholder="e.g. Pre Mid Term Exam"></label>
           <label>Academic Year<input id="analyticsYear" placeholder="e.g. 2026–27"></label>
-          <label>Maximum Marks<input id="analyticsMaximum" type="number" min="0.01" step="0.01" value="100"></label>
-          <label>Pass Mark<input id="analyticsPassMark" type="number" min="0.01" step="0.01" value="33"></label>
+          <label>Maximum Marks<input id="analyticsMaximum" type="number" min="1" step="1" value="100"></label>
+          <label>Pass Mark<input id="analyticsPassMark" type="number" min="1" step="1" value="33"></label>
         </div>
       </article>
       <button id="analyticsGenerate" class="generate" disabled><span>Generate Interactive Dashboard</span><b>→</b></button>
@@ -124,8 +124,8 @@
               <tr><td>Zero mark</td><td>Allowed; handled by the existing ABSENT rule</td></tr>
               <tr><td>Decimal mark</td><td>Validated before rounding, then rounded to the nearest whole mark</td></tr>
               <tr><td>Mark equal to Maximum Marks</td><td>Allowed</td></tr>
-              <tr><td>Maximum Marks</td><td>Must be numeric and greater than 0</td></tr>
-              <tr><td>Pass Mark</td><td>Must be numeric, greater than 0, and not exceed Maximum Marks</td></tr>
+              <tr><td>Maximum Marks</td><td>Required; must be a positive whole number</td></tr>
+              <tr><td>Pass Mark</td><td>Required; must be a positive whole number and not exceed Maximum Marks</td></tr>
               <tr><td>Roll Number</td><td>Optional</td></tr>
               <tr><td>Gender</td><td>Optional</td></tr>
               <tr><td>House</td><td>Optional</td></tr>

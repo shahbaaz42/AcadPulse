@@ -87,7 +87,7 @@
   }
   function donutChart(items, total) {
     const colors={PASS:"#239366",FAIL:"#d65745",ABSENT:"#e5a62f"}, radius=70, circumference=2*Math.PI*radius; let offset=0;
-    const arcs=items.map(item => { const length=total ? item.count/total*circumference : 0, arc=`<circle cx="105" cy="105" r="${radius}" fill="none" stroke="${colors[item.result]}" stroke-width="32" stroke-dasharray="${length} ${circumference-length}" stroke-dashoffset="${-offset}" transform="rotate(-90 105 105)"><title>${item.result}: ${item.count} (${total?format(item.count/total*100):0}%)</title></circle>`; offset+=length; return arc; }).join("");
+    const arcs=items.map(item => { const length=total ? item.count/total*circumference : 0, arc=`<circle cx="105" cy="105" r="${radius}" fill="none" stroke="${colors[item.result]}" stroke-width="32" stroke-dasharray="${length} ${circumference-length}" stroke-dashoffset="${-offset}" transform="rotate(-90 105 105)"><title>${item.result}: ${item.count} (${formatPercentage(total?item.count/total*100:0)}%)</title></circle>`; offset+=length; return arc; }).join("");
     const legend=items.map(item=>`<span><i style="background:${colors[item.result]}"></i><b>${item.result}</b> ${item.count} · ${formatPercentage(total?item.count/total*100:0)}%</span>`).join("");
     return `<div class="donut-layout"><svg viewBox="0 0 210 210" style="width:210px;min-height:210px">${arcs}<text x="105" y="100" text-anchor="middle" font-size="26" font-weight="800" fill="#142b25">${total}</text><text x="105" y="119" text-anchor="middle" font-size="10" fill="#6d7d77">STUDENTS</text></svg><div class="donut-legend">${legend}</div></div>`;
   }

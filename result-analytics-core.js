@@ -15,7 +15,10 @@
   const round2 = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
   const joinRowNumbers = rows => rows.length < 2 ? String(rows[0]) : `${rows.slice(0, -1).join(", ")} & ${rows.at(-1)}`;
   const classParts = value => String(value ?? "").trim().split(/[\s/_-]+/).filter(Boolean);
-  const hasClassSection = (row, columns) => classParts(row[columns.className]).length >= 2;
+  const hasClassSection = (row, columns) => {
+    const parts = classParts(row[columns.className]);
+    return parts.length >= 2 && /[a-z]/i.test(parts.at(-1));
+  };
 
   function optionalMetadataWarnings(structure) {
     return [["gender", "Gender"], ["roll", "Roll No"]].map(([key, label]) => {
@@ -48,7 +51,7 @@
     const headers = rows[headerIndex].map(value => String(value ?? "").trim());
     const columns = Object.fromEntries(Object.entries(ALIASES).map(([key, aliases]) => [key, columnFor(headers, aliases)]));
     if (columns.admission < 0) throw new Error("Missing Admission Number. Add an Admission Number column to the workbook.");
-    if (columns.className < 0) throw new Error("Missing Class & Section. Add a Class column, with a separate Section column when applicable.");
+    if (columns.className < 0) throw new Error("Missing Class & Section. Add a combined Class & Section column, for example X BA or Grade 10 A.");
     const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) => name && index > columns.name && index < columns.className);
     const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) =>
       Array.isArray(row) && String(row[columns.admission] ?? "").trim() !== ""
@@ -69,8 +72,8 @@
 
   function validateRules(maximumMarks, passMark) {
     const maximum = Number(maximumMarks), pass = Number(passMark);
-    if (!Number.isFinite(maximum) || maximum <= 0) throw new Error("Maximum Marks must be numeric and greater than 0.");
-    if (!Number.isFinite(pass) || pass <= 0 || pass > maximum) throw new Error("Pass Mark must be numeric, greater than 0, and not exceed Maximum Marks.");
+    if (!Number.isInteger(maximum) || maximum <= 0) throw new Error("Maximum Marks must be a positive whole number.");
+    if (!Number.isInteger(pass) || pass <= 0 || pass > maximum) throw new Error("Pass Mark must be a positive whole number and not exceed Maximum Marks.");
     return { maximumMarks: maximum, passMark: pass };
   }
 

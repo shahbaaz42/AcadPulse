@@ -60,9 +60,12 @@ Parsing, calculations, preview generation and Excel creation happen in the user'
 
 ### Workflow and source workbook
 
-Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. The expected order is **Roll No | ADMNO | Student Name | Subjects | Class & Section | Gender | House**. A non-blank, unique **ADMNO** identifies a student row. Every identified student must also provide **Student Name** and one combined **Class & Section** value such as `X BA` or `Grade 10 A`. At least one subject header is required between Student Name and Class & Section. Roll Number, Gender and House are optional; unrelated columns outside the subject region are ignored.
+Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. The expected order is **Roll No | ADMNO | Student Name | Subjects | Class & Section | Gender | House**. A non-blank, unique **ADMNO** identifies a student row. Every identified student must also provide **Student Name** and one combined **Class & Section** value such as `X BA` or `Grade 10 A`; the final section component must contain at least one letter, so `Grade 10` alone is not sufficient. Separate Class and Section columns are not supported. At least one subject header is required between Student Name and Class & Section. Roll Number, Gender and House are optional; unrelated columns outside the subject region are ignored.
 
-Phase 1 uses one configurable **Maximum Marks** and **Pass Mark** for every detected subject. Exam Name and Academic Year identify the dashboard. The included reference workbook uses Maximum Marks `100` and Pass Mark `33`; teachers can change both for other exams.
+Phase 1 uses one configurable **Maximum Marks** and **Pass Mark** for every detected subject. Both are required positive whole numbers, and Pass Mark must not exceed Maximum Marks. Exam Name and Academic Year identify the dashboard. The included reference workbook uses Maximum Marks `100` and Pass Mark `33`; teachers can change both for other exams.
+
+- **Maximum Marks** — Required; must be a positive whole number.
+- **Pass Mark** — Required; must be a positive whole number and must not exceed Maximum Marks.
 
 Each source mark is validated before rounding, so a decimal above Maximum Marks is rejected rather than rounded into range. Valid marks are rounded to the nearest whole number with standard JavaScript rounding; those rounded marks are authoritative for results, totals, averages, percentages, distributions and rankings. Percentage displays use exactly two decimal places.
 
