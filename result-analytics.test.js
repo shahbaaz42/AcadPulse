@@ -49,7 +49,7 @@ test("class filter works",()=>assert.strictEqual(core.filterStudents(students,{c
 test("gender filter works",()=>assert.strictEqual(core.filterStudents(students,{gender:"BOY"}).length,2));
 test("combined Class and Gender filters use AND logic",()=>assert.deepStrictEqual(core.filterStudents(students,{className:"X B",gender:"BOY"}).map(s=>s.name),["Absent"]));
 test("missing required metadata and empty data report clear errors",()=>{
-  assert.throws(()=>core.detectResultStructure([["Admission Number","Name","Math","Gender"],["A1","A",2,"GIRL"]]),error=>error.message==="Missing Class & Section. Add a combined Class & Section column, for example X BA or Grade 10 A." && !/separate/i.test(error.message));
+  assert.throws(()=>core.detectResultStructure([["Admission Number","Name","Math","Gender"],["A1","A",2,"GIRL"]]),/Missing Class & Section/);
   assert.throws(()=>core.detectResultStructure([["Admission Number","Name","Math","Class"]]),/no student rows/i);
 });
 const rowError = (rows, maximumMarks=100) => assert.throws(
@@ -147,19 +147,24 @@ test("partially malformed student records remain included and keep their true Ex
   ];
   assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 6.");
 });
-test("Class & Section must be combined in one column",()=>{
-  const combinedWithoutSection=[["ADMNO","STUDENT NAME","Math","Class"],["A1","Combined",45,"X BA"]];
-  assert.strictEqual(core.deriveStudents(core.detectResultStructure(combinedWithoutSection),{maximumMarks:100,passMark:33})[0].className,"X BA");
-  const combinedBlankSection=[["ADMNO","STUDENT NAME","Math","Class","Section"],["A1","Combined",45,"X BA",""]];
-  assert.strictEqual(core.deriveStudents(core.detectResultStructure(combinedBlankSection),{maximumMarks:100,passMark:33})[0].className,"X BA");
-  const rows=[["ADMNO","STUDENT NAME","Math","Class","Section","Gender"],["A1","Student",45,"X BA","",""]];
-  const detected=core.detectResultStructure(rows), [student]=core.deriveStudents(detected,{maximumMarks:100,passMark:33});
-  assert.strictEqual(student.className,"X BA");
-  assert.strictEqual(core.filterStudents([student],{className:"X BA"}).length,1);
-  assert.throws(()=>core.detectResultStructure([rows[0],["A2","Separate unsupported",50,"X","BA",""]]),error=>error.message==="Please check the details in Excel row 2.");
-  assert.throws(()=>core.detectResultStructure([rows[0],["A3","Missing class",50,"","BA",""]]),error=>error.message==="Please check the details in Excel row 2.");
-  assert.doesNotThrow(()=>core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A4","Grade",50,"Grade 10 A"]]));
-  assert.throws(()=>core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A5","Incomplete",50,"Grade 10"]]),error=>error.message==="Please check the details in Excel row 2.");
+test("Class & Section accepts any non-blank trimmed value and keeps distinct classes",()=>{
+  const rows=[["ADMNO","STUDENT NAME","Math","Class"],["A1","One",45,"Grade X"],["A2","Two",45,"Grade 10"],["A3","Three",45,"X BA"]];
+  const detected=core.detectResultStructure(rows);
+  assert.deepStrictEqual(detected.classes,["Grade X","Grade 10","X BA"]);
+  const derived=core.deriveStudents(detected,{maximumMarks:100,passMark:33});
+  assert.deepStrictEqual(derived.map(student=>student.className),["Grade X","Grade 10","X BA"]);
+  assert.strictEqual(core.filterStudents(derived,{className:"Grade X"}).length,1);
+  assert.strictEqual(core.filterStudents(derived,{className:"Grade 10"}).length,1);
+  for(const value of [""," \t "]){
+    assert.throws(()=>core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A4","Blank",45,value]]),error=>error.message==="Please check the details in Excel row 2.");
+  }
+});
+test("workbook summary reports distinct trimmed Class & Section values",()=>{
+  const detected=core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A1","One",45," Grade X "],["A2","Two",45,"Grade 10"],["A3","Three",45,"Grade X"]]);
+  assert.deepStrictEqual(detected.classes,["Grade X","Grade 10"]);
+  const controller=fs.readFileSync("result-analytics.js","utf8");
+  assert.match(controller,/structure\.classes\.length.*Classes.*detected:/);
+  assert.match(controller,/structure\.classes\.map\(escapeHtml\)\.join\(", "\)/);
 });
 test("duplicate ADMNO values reject the later true Excel row",()=>{
   const rows=[["Report"],["ADMNO","STUDENT NAME","Math","Class"],["A1","First",45,"X BA"],[],["A1","Duplicate",50,"X BA"]];
@@ -259,7 +264,7 @@ test("generation invalidates stale dashboard output without clearing the loaded 
 });
 test("requirements table is complete, responsive, and cleared after successful processing",()=>{
   const html=fs.readFileSync("index.html","utf8"), css=fs.readFileSync("result-analytics.css","utf8"), controller=fs.readFileSync("result-analytics.js","utf8");
-  for(const text of ["ADMNO","Student Name","Class &amp; Section","Gender","House","Other columns","Subject Mark","Blank / whitespace-only mark","Negative mark","Mark above Maximum Marks","Zero mark","Decimal mark","Mark equal to Maximum Marks","Maximum Marks","Pass Mark","Required; must not be blank","Required; must be numeric","Allowed; handled by the existing ABSENT rule","Required; must be a positive whole number","Required; must be a positive whole number and not exceed Maximum Marks"]) assert.ok(html.includes(text),text);
+  for(const text of ["ADMNO","Student Name","Class &amp; Section","Gender","House","Other columns","Subject Mark","Blank / whitespace-only mark","Negative mark","Mark above Maximum Marks","Zero mark","Decimal mark","Mark equal to Maximum Marks","Maximum Marks","Pass Mark","Required; must not be blank","Required; must be numeric","Allowed; handled by the existing ABSENT rule","Required; every student must have a non-blank value. Distinct values are treated as separate classes.","Required; must be a positive whole number","Required; must be a positive whole number and not exceed Maximum Marks"]) assert.ok(html.includes(text),text);
   assert.match(html,/id="analyticsRequirements"[^>]*hidden/);
   assert.match(css,/\.requirements-scroll\{[^}]*overflow-x:auto/);
   assert.match(controller,/hideRequirements\(\);\s*try/);

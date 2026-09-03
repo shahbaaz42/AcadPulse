@@ -14,11 +14,6 @@
   const columnFor = (headers, aliases) => headers.findIndex(header => aliases.includes(normalizeHeader(header)));
   const round2 = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
   const joinRowNumbers = rows => rows.length < 2 ? String(rows[0]) : `${rows.slice(0, -1).join(", ")} & ${rows.at(-1)}`;
-  const classParts = value => String(value ?? "").trim().split(/[\s/_-]+/).filter(Boolean);
-  const hasClassSection = (row, columns) => {
-    const parts = classParts(row[columns.className]);
-    return parts.length >= 2 && /[a-z]/i.test(parts.at(-1));
-  };
 
   function optionalMetadataWarnings(structure) {
     return [["gender", "Gender"], ["roll", "Roll No"]].map(([key, label]) => {
@@ -51,14 +46,14 @@
     const headers = rows[headerIndex].map(value => String(value ?? "").trim());
     const columns = Object.fromEntries(Object.entries(ALIASES).map(([key, aliases]) => [key, columnFor(headers, aliases)]));
     if (columns.admission < 0) throw new Error("Missing Admission Number. Add an Admission Number column to the workbook.");
-    if (columns.className < 0) throw new Error("Missing Class & Section. Add a combined Class & Section column, for example X BA or Grade 10 A.");
+    if (columns.className < 0) throw new Error("Missing Class & Section. Add a Class & Section column.");
     const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) => name && index > columns.name && index < columns.className);
     const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) =>
       Array.isArray(row) && String(row[columns.admission] ?? "").trim() !== ""
     );
     const dataRows = studentRows.map(entry => entry.row), dataRowNumbers = studentRows.map(entry => entry.excelRow);
     if (!dataRows.length) throw new Error("The workbook contains no student rows.");
-    const invalidMetadataIndex = dataRows.findIndex(row => !String(row[columns.name] ?? "").trim() || !hasClassSection(row, columns));
+    const invalidMetadataIndex = dataRows.findIndex(row => !String(row[columns.name] ?? "").trim() || !String(row[columns.className] ?? "").trim());
     if (invalidMetadataIndex >= 0) throw workbookRowError(dataRowNumbers[invalidMetadataIndex]);
     const admissionRows = new Map();
     dataRows.forEach((row, index) => {
@@ -67,7 +62,8 @@
       admissionRows.set(admission, dataRowNumbers[index]);
     });
     if (!subjects.length) throw new Error("No subject columns were detected.");
-    return { headerIndex, headers, columns, subjects, dataRows, dataRowNumbers };
+    const classes = [...new Set(dataRows.map(row => String(row[columns.className]).trim()))];
+    return { headerIndex, headers, columns, subjects, dataRows, dataRowNumbers, classes };
   }
 
   function validateRules(maximumMarks, passMark) {
@@ -81,7 +77,7 @@
     const rules = validateRules(configuration.maximumMarks, configuration.passMark);
     return structure.dataRows.map((row, sourceIndex) => {
       const excelRow = structure.dataRowNumbers?.[sourceIndex] ?? structure.headerIndex + sourceIndex + 2;
-      if (!String(row[structure.columns.name] ?? "").trim() || !hasClassSection(row, structure.columns)) throw workbookRowError(excelRow);
+      if (!String(row[structure.columns.name] ?? "").trim() || !String(row[structure.columns.className] ?? "").trim()) throw workbookRowError(excelRow);
       const marks = structure.subjects.map(subject => {
         const raw = row[subject.index];
         const normalized = typeof raw === "string" ? raw.trim() : raw;

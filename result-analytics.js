@@ -46,7 +46,7 @@
       if (!state.loadGuard.isCurrent(loadId)) return;
       state.structure = structure; state.filename = file.name;
       showWarnings(core.optionalMetadataWarnings(structure));
-      $("analyticsFileSummary").innerHTML = `<div class="file-row"><div><strong>✓ ${escapeHtml(file.name)}</strong><small>${structure.dataRows.length} students · ${structure.subjects.length} dynamically detected subjects</small></div></div><div class="detected">${structure.subjects.map(subject => `<span class="tag">${escapeHtml(subject.name)}</span>`).join("")}</div>`;
+      $("analyticsFileSummary").innerHTML = `<div class="file-row"><div><strong>✓ ${escapeHtml(file.name)}</strong><small>${structure.dataRows.length} students · ${structure.subjects.length} dynamically detected subjects</small><small><b>${structure.classes.length} ${structure.classes.length === 1 ? "Class" : "Classes"} detected:</b> ${structure.classes.map(escapeHtml).join(", ")}</small></div></div><div class="detected">${structure.subjects.map(subject => `<span class="tag">${escapeHtml(subject.name)}</span>`).join("")}</div>`;
       $("analyticsFileSummary").hidden = false; $("analyticsConfigCard").classList.remove("locked"); $("analyticsGenerate").disabled = false;
       uploadMessage("Workbook read locally. Confirm the exam rules, then generate the dashboard.", true); track("result_workbook_uploaded");
     } catch (error) {
