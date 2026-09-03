@@ -10,7 +10,7 @@ Attendance, authentication, databases, LMS features and portals remain outside t
 ## What V1 does
 
 - Reads an `.xlsx` consolidation workbook in the browser and uses its first worksheet.
-- Detects identity/metadata fields and dynamically identifies numeric marks columns as subjects.
+- Detects identity/metadata fields and dynamically identifies subject headers in the standard consolidation subject region.
 - Collects Exam Name, Class, Section and a separate maximum mark for every subject.
 - Converts obtained marks to percentages and points, groups students by normalized House values, and displays student and house totals/averages.
 - Downloads a professionally formatted, single-sheet Excel report with every House followed by an overall summary.
@@ -60,9 +60,14 @@ Parsing, calculations, preview generation and Excel creation happen in the user'
 
 ### Workflow and source workbook
 
-Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. The header may appear after introductory rows, but must contain recognizable aliases for **Student Name**, **Class** and **Gender**. Roll Number, Admission Number and Section are optional. All remaining columns with numeric student values are detected dynamically as subjects, so the module is not limited to the six subjects in the reference workbook.
+Open **Result Analytics** in the module selector, upload an `.xlsx` workbook, review the Exam Configuration and generate the dashboard. Only the first worksheet is read. The expected order is **Roll No | ADMNO | Student Name | Subjects | Class & Section | Gender | House**. A non-blank, unique **ADMNO** identifies a student row. Every identified student must also provide **Student Name** and a non-blank value in the single **Class & Section** column. Result Analytics does not interpret or standardize that value: distinct trimmed values are separate classes for filtering and appear in the workbook summary so teachers can spot inconsistent naming. At least one subject header is required between Student Name and Class & Section. Roll Number, Gender and House are optional; unrelated columns outside the subject region are ignored.
 
-Phase 1 uses one configurable **Maximum Marks** and **Pass Mark** for every detected subject. Exam Name and Academic Year identify the dashboard. The included reference workbook uses Maximum Marks `100` and Pass Mark `33`; teachers can change both for other exams.
+Phase 1 uses one configurable **Maximum Marks** and **Pass Mark** for every detected subject. Both are required positive whole numbers, and Pass Mark must not exceed Maximum Marks. Exam Name and Academic Year identify the dashboard. The included reference workbook uses Maximum Marks `100` and Pass Mark `33`; teachers can change both for other exams.
+
+- **Maximum Marks** — Required; must be a positive whole number.
+- **Pass Mark** — Required; must be a positive whole number and must not exceed Maximum Marks.
+
+Each source mark is validated before rounding, so a decimal above Maximum Marks is rejected rather than rounded into range. Valid marks are rounded to the nearest whole number with standard JavaScript rounding; those rounded marks are authoritative for results, totals, averages, percentages, distributions and rankings. Percentage displays use exactly two decimal places.
 
 ### Calculations
 

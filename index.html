@@ -79,7 +79,7 @@
   </main>
   <main id="analyticsModule" class="module-view" hidden>
     <section class="analytics-hero">
-      <div><span class="eyebrow">RESULT ANALYTICS · PHASE 1</span><h1>See the whole result story.</h1><p>Upload a result workbook and build a private, filterable Page 1 dashboard entirely in your browser.</p></div>
+      <div><span class="eyebrow">RESULT ANALYTICS · PHASE 1</span><h1>See the whole result story.</h1><p>Upload a Marks Consolidation File and build a private, filterable Page 1 dashboard entirely in your browser.</p></div>
       <div class="privacy-card"><span>⌁</span><div><strong>Local and private</strong><p>Names, admission numbers and marks never leave this device.</p></div></div>
     </section>
     <nav class="steps analytics-steps" aria-label="Result analytics progress">
@@ -100,19 +100,48 @@
         <div class="analytics-config-grid">
           <label>Exam Name<input id="analyticsExamName" placeholder="e.g. Pre Mid Term Exam"></label>
           <label>Academic Year<input id="analyticsYear" placeholder="e.g. 2026–27"></label>
-          <label>Maximum Marks<input id="analyticsMaximum" type="number" min="0.01" step="0.01" value="100"></label>
-          <label>Pass Mark<input id="analyticsPassMark" type="number" min="0.01" step="0.01" value="33"></label>
+          <label>Maximum Marks<input id="analyticsMaximum" type="number" min="1" step="1" value="100"></label>
+          <label>Pass Mark<input id="analyticsPassMark" type="number" min="1" step="1" value="33"></label>
         </div>
       </article>
       <button id="analyticsGenerate" class="generate" disabled><span>Generate Interactive Dashboard</span><b>→</b></button>
       <div id="analyticsMessage" class="message generate-message" role="alert" hidden></div>
+      <section id="analyticsWarnings" class="warnings-card" aria-labelledby="analyticsWarningsTitle" hidden><h3 id="analyticsWarningsTitle">Data Warnings</h3><div id="analyticsWarningLines"></div></section>
+      <section id="analyticsRequirements" class="requirements-card" aria-labelledby="analyticsRequirementsTitle" hidden>
+        <h3 id="analyticsRequirementsTitle">Marks Consolidation File Requirements</h3>
+        <div class="requirements-scroll" tabindex="0">
+          <table>
+            <thead><tr><th>Field / Rule</th><th>Requirement</th></tr></thead>
+            <tbody>
+              <tr><td>Student Name</td><td>Required; must not be blank</td></tr>
+              <tr><td>ADMNO</td><td>Required for every student; must be unique</td></tr>
+              <tr><td>Class &amp; Section</td><td>Required; every student must have a non-blank value. Distinct values are treated as separate classes.</td></tr>
+              <tr><td>At least one Subject</td><td>Required</td></tr>
+              <tr><td>Subject Mark</td><td>Required; must be numeric</td></tr>
+              <tr><td>Blank / whitespace-only mark</td><td>Not allowed</td></tr>
+              <tr><td>Negative mark</td><td>Not allowed</td></tr>
+              <tr><td>Mark above Maximum Marks</td><td>Not allowed</td></tr>
+              <tr><td>Zero mark</td><td>Allowed; handled by the existing ABSENT rule</td></tr>
+              <tr><td>Decimal mark</td><td>Validated before rounding, then rounded to the nearest whole mark</td></tr>
+              <tr><td>Mark equal to Maximum Marks</td><td>Allowed</td></tr>
+              <tr><td>Maximum Marks</td><td>Required; must be a positive whole number</td></tr>
+              <tr><td>Pass Mark</td><td>Required; must be a positive whole number and not exceed Maximum Marks</td></tr>
+              <tr><td>Roll Number</td><td>Optional</td></tr>
+              <tr><td>Gender</td><td>Optional</td></tr>
+              <tr><td>House</td><td>Optional</td></tr>
+              <tr><td>Remarks / Comments / Notes</td><td>Optional</td></tr>
+              <tr><td>Other columns</td><td>Ignored outside the subject region</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
 
     <section id="analyticsDashboard" class="analytics-dashboard" hidden>
       <div class="dashboard-heading"><div><span class="eyebrow">PAGE 1 · OVERALL SUMMARY</span><h2 id="dashboardTitle">Result Analytics Dashboard</h2><p id="dashboardSubtitle"></p></div><span class="local-badge">● Browser-local analysis</span></div>
       <div class="dashboard-filters">
         <label>Class<select id="analyticsClassFilter"><option>All</option></select></label>
-        <label>Gender<select id="analyticsGenderFilter"><option>All</option></select></label>
+        <label id="analyticsGenderFilterField">Gender<select id="analyticsGenderFilter"><option>All</option></select></label>
         <button id="analyticsResetFilters" class="filter-reset" type="button">Reset filters</button>
         <span id="filterCount" aria-live="polite"></span>
       </div>
