@@ -336,7 +336,7 @@ test("dropping a workbook clears the picker so its previous file can be reselect
 
   test("deployed page cache-busts the Result Analytics browser bundle",()=>{
     const html=fs.readFileSync("index.html","utf8");
-    assert.match(html,/vendor\/acadpulse-xlsx\.js\?v=20260909-3/);
+    assert.match(html,/vendor\/acadpulse-xlsx\.js\?v=20260909-4/);
     assert.match(html,/result-analytics-core\.js\?v=20260909-3/);
     assert.match(html,/result-analytics\.js\?v=20260909-3/);
   });
