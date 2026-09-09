@@ -1,5 +1,6 @@
 const assert = require("assert");
 const fs = require("fs");
+const vm = require("vm");
 const core = require("./result-analytics-core");
 require("./vendor/acadpulse-xlsx.js");
 
@@ -313,6 +314,56 @@ test("dropping a workbook clears the picker so its previous file can be reselect
 });
 
 (async function integration() {
+  function browserUpload(rows) {
+    const elements=new Map();
+    const element=id=>{
+      if(elements.has(id)) return elements.get(id);
+      const listeners={};
+      const value={id,hidden:true,disabled:false,value:"",textContent:"",innerHTML:"",className:"",listeners,
+        classList:{add(){},remove(){},toggle(){return false;}},
+        addEventListener(name,handler){listeners[name]=handler;},insertAdjacentElement(){},scrollIntoView(){}};
+      elements.set(id,value); return value;
+    };
+    const document={getElementById:element,querySelectorAll:()=>[],title:""};
+    const sandbox={document,console,setTimeout,clearTimeout,globalThis:null};
+    sandbox.window=sandbox; sandbox.globalThis=sandbox;
+    sandbox.AcadPulseResultCore=core;
+    sandbox.XLSX={read:async()=>({SheetNames:["Results"],Sheets:{Results:{}}}),utils:{sheet_to_json:()=>rows}};
+    vm.runInNewContext(fs.readFileSync("result-analytics.js","utf8"),sandbox,{filename:"result-analytics.js"});
+    const upload=element("analyticsFileInput").listeners.change({target:{files:[{name:"live-test.xlsx",size:100,arrayBuffer:async()=>new ArrayBuffer(0)}]}});
+    return Promise.resolve(upload).then(()=>({elements,element}));
+  }
+
+  test("deployed page cache-busts the Result Analytics browser bundle",()=>{
+    const html=fs.readFileSync("index.html","utf8");
+    assert.match(html,/result-analytics-core\.js\?v=20260909-2/);
+    assert.match(html,/result-analytics\.js\?v=20260909-2/);
+  });
+
+  for(const classValue of [""," \t "]){
+    const {element}=await browserUpload([["ADMNO","STUDENT NAME","Math","Class & Section","Gender"],["A1","Valid",45,"X A","GIRL"],["A2","Live case",50,classValue,"BOY"]]);
+    test(`browser upload blocks ${classValue ? "whitespace-only" : "blank"} Class & Section and shows the class error`,()=>{
+      assert.strictEqual(element("analyticsUploadMessage").textContent,"Class & Section is missing in Excel row 3.");
+      assert.strictEqual(element("analyticsGenerate").disabled,true);
+      assert.strictEqual(element("analyticsWarnings").hidden,true);
+    });
+  }
+
+  const missingGender=await browserUpload([["ADMNO","STUDENT NAME","Math","Class & Section","Gender"],["A1","Optional gender",45,"X BA",""]]);
+  test("browser upload keeps blank Gender optional and displays its Data Warning",()=>{
+    assert.strictEqual(missingGender.element("analyticsGenerate").disabled,false);
+    assert.match(missingGender.element("analyticsWarningLines").innerHTML,/Gender is missing in Excel row 2\./);
+    assert.strictEqual(missingGender.element("analyticsWarnings").hidden,false);
+    assert.strictEqual(missingGender.element("analyticsUploadMessage").className,"message upload-message success");
+  });
+
+  const completeMetadata=await browserUpload([["ADMNO","STUDENT NAME","Math","Class & Section","Gender"],["A1","Complete",45,"X BA","BOY"]]);
+  test("browser upload emits no Class or Gender message when both values are present",()=>{
+    assert.strictEqual(completeMetadata.element("analyticsGenerate").disabled,false);
+    assert.doesNotMatch(completeMetadata.element("analyticsWarningLines").innerHTML,/Class|Gender/);
+    assert.doesNotMatch(completeMetadata.element("analyticsUploadMessage").textContent,/Class|Gender/);
+  });
+
   function deferred() { let resolve, reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no}); return {promise,resolve,reject}; }
   function guardedLoader(guard, application, analyticsEvents, name, work) {
     const loadId=guard.begin();
