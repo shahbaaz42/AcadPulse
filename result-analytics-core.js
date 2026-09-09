@@ -20,7 +20,7 @@
       const column = structure.columns[key];
       if (column < 0) return `${label} column is not available in this file.`;
       const rows = structure.dataRows.map((row, index) => !String(row[column] ?? "").trim() ? structure.dataRowNumbers[index] : null).filter(Boolean);
-      return rows.length ? `${label} is missing in Excel rows ${joinRowNumbers(rows)}.` : null;
+      return rows.length ? `${label} is missing in Excel ${rows.length === 1 ? "row" : "rows"} ${joinRowNumbers(rows)}.` : null;
     }).filter(Boolean);
   }
 
@@ -28,6 +28,21 @@
     const error = new Error(`Please check the details in Excel row ${excelRow}.`);
     error.code = "WORKBOOK_ROW_VALIDATION";
     error.excelRow = excelRow;
+    return error;
+  }
+
+  function classMissingError(excelRow) {
+    const error = new Error(`Class & Section is missing in Excel row ${excelRow}.`);
+    error.code = "WORKBOOK_ROW_VALIDATION";
+    error.excelRow = excelRow;
+    return error;
+  }
+
+  function duplicateAdmissionError(firstRow, duplicateRow) {
+    const error = new Error(`Duplicate ADMNO found in Excel rows ${firstRow} and ${duplicateRow}.`);
+    error.code = "WORKBOOK_ROW_VALIDATION";
+    error.excelRow = duplicateRow;
+    error.conflictingExcelRows = [firstRow, duplicateRow];
     return error;
   }
 
@@ -54,11 +69,15 @@
     const dataRows = studentRows.map(entry => entry.row), dataRowNumbers = studentRows.map(entry => entry.excelRow);
     if (!dataRows.length) throw new Error("The workbook contains no student rows.");
     const invalidMetadataIndex = dataRows.findIndex(row => !String(row[columns.name] ?? "").trim() || !String(row[columns.className] ?? "").trim());
-    if (invalidMetadataIndex >= 0) throw workbookRowError(dataRowNumbers[invalidMetadataIndex]);
+    if (invalidMetadataIndex >= 0) {
+      const excelRow = dataRowNumbers[invalidMetadataIndex];
+      if (!String(dataRows[invalidMetadataIndex][columns.className] ?? "").trim()) throw classMissingError(excelRow);
+      throw workbookRowError(excelRow);
+    }
     const admissionRows = new Map();
     dataRows.forEach((row, index) => {
       const admission = String(row[columns.admission]).trim();
-      if (admissionRows.has(admission)) throw workbookRowError(dataRowNumbers[index]);
+      if (admissionRows.has(admission)) throw duplicateAdmissionError(admissionRows.get(admission), dataRowNumbers[index]);
       admissionRows.set(admission, dataRowNumbers[index]);
     });
     if (!subjects.length) throw new Error("No subject columns were detected.");
@@ -77,7 +96,8 @@
     const rules = validateRules(configuration.maximumMarks, configuration.passMark);
     return structure.dataRows.map((row, sourceIndex) => {
       const excelRow = structure.dataRowNumbers?.[sourceIndex] ?? structure.headerIndex + sourceIndex + 2;
-      if (!String(row[structure.columns.name] ?? "").trim() || !String(row[structure.columns.className] ?? "").trim()) throw workbookRowError(excelRow);
+      if (!String(row[structure.columns.name] ?? "").trim()) throw workbookRowError(excelRow);
+      if (!String(row[structure.columns.className] ?? "").trim()) throw classMissingError(excelRow);
       const marks = structure.subjects.map(subject => {
         const raw = row[subject.index];
         const normalized = typeof raw === "string" ? raw.trim() : raw;
