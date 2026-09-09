@@ -1,5 +1,6 @@
 const assert = require("assert");
 const fs = require("fs");
+const vm = require("vm");
 const core = require("./result-analytics-core");
 require("./vendor/acadpulse-xlsx.js");
 
@@ -56,11 +57,18 @@ const rowError = (rows, maximumMarks=100) => assert.throws(
   ()=>core.deriveStudents(core.detectResultStructure(rows),{maximumMarks,passMark:33}),
   error=>error.code==="WORKBOOK_ROW_VALIDATION" && /^Please check the details in Excel row \d+\.$/.test(error.message)
 );
-test("missing and whitespace-only required student values produce generic row errors",()=>{
+test("missing and whitespace-only required student names produce generic row errors",()=>{
   const header=["Admission Number","Student Name","Math","Class","Gender"];
-  for(const [column,value] of [[1,""],[3,""],[1," \t "],[3," \t "]]) {
+  for(const [column,value] of [[1,""],[1," \t "]]) {
     const student=["A1","Student",45,"X A","BOY"]; student[column]=value;
     rowError([header,student]);
+  }
+});
+test("blank Class & Section reports its true Excel row and blocks processing without misreporting Gender",()=>{
+  const header=["Admission Number","Student Name","Math","Class","Gender"];
+  for(const value of [""," \t "]){
+    const rows=[["Report"],header,["A1","Valid",45,"X A","GIRL"],["A2","Missing class",45,value,"BOY"]];
+    assert.throws(()=>core.detectResultStructure(rows),error=>error.code==="WORKBOOK_ROW_VALIDATION" && error.message==="Class & Section is missing in Excel row 4.");
   }
 });
 test("Admission Number column and per-student values remain required",()=>{
@@ -156,7 +164,7 @@ test("Class & Section accepts any non-blank trimmed value and keeps distinct cla
   assert.strictEqual(core.filterStudents(derived,{className:"Grade X"}).length,1);
   assert.strictEqual(core.filterStudents(derived,{className:"Grade 10"}).length,1);
   for(const value of [""," \t "]){
-    assert.throws(()=>core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A4","Blank",45,value]]),error=>error.message==="Please check the details in Excel row 2.");
+    assert.throws(()=>core.detectResultStructure([["ADMNO","STUDENT NAME","Math","Class"],["A4","Blank",45,value]]),error=>error.message==="Class & Section is missing in Excel row 2.");
   }
 });
 test("workbook summary reports distinct trimmed Class & Section values",()=>{
@@ -166,9 +174,18 @@ test("workbook summary reports distinct trimmed Class & Section values",()=>{
   assert.match(controller,/structure\.classes\.length.*Classes.*detected:/);
   assert.match(controller,/structure\.classes\.map\(escapeHtml\)\.join\(", "\)/);
 });
-test("duplicate ADMNO values reject the later true Excel row",()=>{
-  const rows=[["Report"],["ADMNO","STUDENT NAME","Math","Class"],["A1","First",45,"X BA"],[],["A1","Duplicate",50,"X BA"]];
-  assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Please check the details in Excel row 5.");
+test("adjacent duplicate ADMNO values report both true Excel rows without exposing the value",()=>{
+  const rows=[["Report"],["ADMNO","STUDENT NAME","Math","Class"],["PRIVATE-123","First",45,"X BA"],["PRIVATE-123","Duplicate",50,"X BA"]];
+  assert.throws(()=>core.detectResultStructure(rows),error=>error.code==="WORKBOOK_ROW_VALIDATION" && error.message==="Duplicate ADMNO found in Excel rows 3 and 4." && !error.message.includes("PRIVATE-123"));
+});
+test("non-adjacent duplicate ADMNO values report both true Excel rows",()=>{
+  const rows=[["Report"],["ADMNO","STUDENT NAME","Math","Class"],["A1","First",45,"X BA"],[],["A2","Other",50,"Grade 10"],["A1","Duplicate",50,"X BA"]];
+  assert.throws(()=>core.detectResultStructure(rows),error=>error.message==="Duplicate ADMNO found in Excel rows 3 and 6." && error.conflictingExcelRows.join(",")==="3,6");
+});
+test("unique ADMNO values continue through structure detection and derivation",()=>{
+  const rows=[["ADMNO","STUDENT NAME","Math","Class"],["A1","First",45,"X BA"],["A2","Second",50,"Grade X"]];
+  const detected=core.detectResultStructure(rows);
+  assert.strictEqual(core.deriveStudents(detected,{maximumMarks:100,passMark:33}).length,2);
 });
 test("optional metadata warnings use true Excel rows and never remove students",()=>{
   const rows=[["ADMNO","STUDENT NAME","Math","Class","Gender","ROLLNO"],...Array.from({length:62},(_,index)=>[`A${index+1}`,`Student ${index+1}`,50,"X A","BOY",index+1])];
@@ -183,6 +200,13 @@ test("absent Gender and Roll Number columns are informational only",()=>{
   const detected=core.detectResultStructure(rows);
   assert.strictEqual(core.deriveStudents(detected,{maximumMarks:100,passMark:33}).length,1);
   assert.deepStrictEqual(core.optionalMetadataWarnings(detected),["Gender column is not available in this file.","Roll No column is not available in this file."]);
+});
+test("blank Gender remains optional and produces a singular Data Warning",()=>{
+  const rows=[["ADMNO","STUDENT NAME","Math","Class","Gender"],["A1","Student",50,"X A",""]];
+  const detected=core.detectResultStructure(rows);
+  assert.strictEqual(core.deriveStudents(detected,{maximumMarks:100,passMark:33}).length,1);
+  assert.ok(!detected.dataRows[0][4]);
+  assert.deepStrictEqual(core.optionalMetadataWarnings(detected),["Gender is missing in Excel row 2.","Roll No column is not available in this file."]);
 });
 test("fully populated Class and Gender values are accepted and trimmed during derivation",()=>{
   const completeRows=[["Admission Number","Student Name","Math","Class","Gender"],[" A1 ","Complete",45," X A "," BOY "]];
@@ -290,6 +314,56 @@ test("dropping a workbook clears the picker so its previous file can be reselect
 });
 
 (async function integration() {
+  function browserUpload(rows) {
+    const elements=new Map();
+    const element=id=>{
+      if(elements.has(id)) return elements.get(id);
+      const listeners={};
+      const value={id,hidden:true,disabled:false,value:"",textContent:"",innerHTML:"",className:"",listeners,
+        classList:{add(){},remove(){},toggle(){return false;}},
+        addEventListener(name,handler){listeners[name]=handler;},insertAdjacentElement(){},scrollIntoView(){}};
+      elements.set(id,value); return value;
+    };
+    const document={getElementById:element,querySelectorAll:()=>[],title:""};
+    const sandbox={document,console,setTimeout,clearTimeout,globalThis:null};
+    sandbox.window=sandbox; sandbox.globalThis=sandbox;
+    sandbox.AcadPulseResultCore=core;
+    sandbox.XLSX={read:async()=>({SheetNames:["Results"],Sheets:{Results:{}}}),utils:{sheet_to_json:()=>rows}};
+    vm.runInNewContext(fs.readFileSync("result-analytics.js","utf8"),sandbox,{filename:"result-analytics.js"});
+    const upload=element("analyticsFileInput").listeners.change({target:{files:[{name:"live-test.xlsx",size:100,arrayBuffer:async()=>new ArrayBuffer(0)}]}});
+    return Promise.resolve(upload).then(()=>({elements,element}));
+  }
+
+  test("deployed page cache-busts the Result Analytics browser bundle",()=>{
+    const html=fs.readFileSync("index.html","utf8");
+    assert.match(html,/result-analytics-core\.js\?v=20260909-2/);
+    assert.match(html,/result-analytics\.js\?v=20260909-2/);
+  });
+
+  for(const classValue of [""," \t "]){
+    const {element}=await browserUpload([["ADMNO","STUDENT NAME","Math","Class & Section","Gender"],["A1","Valid",45,"X A","GIRL"],["A2","Live case",50,classValue,"BOY"]]);
+    test(`browser upload blocks ${classValue ? "whitespace-only" : "blank"} Class & Section and shows the class error`,()=>{
+      assert.strictEqual(element("analyticsUploadMessage").textContent,"Class & Section is missing in Excel row 3.");
+      assert.strictEqual(element("analyticsGenerate").disabled,true);
+      assert.strictEqual(element("analyticsWarnings").hidden,true);
+    });
+  }
+
+  const missingGender=await browserUpload([["ADMNO","STUDENT NAME","Math","Class & Section","Gender"],["A1","Optional gender",45,"X BA",""]]);
+  test("browser upload keeps blank Gender optional and displays its Data Warning",()=>{
+    assert.strictEqual(missingGender.element("analyticsGenerate").disabled,false);
+    assert.match(missingGender.element("analyticsWarningLines").innerHTML,/Gender is missing in Excel row 2\./);
+    assert.strictEqual(missingGender.element("analyticsWarnings").hidden,false);
+    assert.strictEqual(missingGender.element("analyticsUploadMessage").className,"message upload-message success");
+  });
+
+  const completeMetadata=await browserUpload([["ADMNO","STUDENT NAME","Math","Class & Section","Gender"],["A1","Complete",45,"X BA","BOY"]]);
+  test("browser upload emits no Class or Gender message when both values are present",()=>{
+    assert.strictEqual(completeMetadata.element("analyticsGenerate").disabled,false);
+    assert.doesNotMatch(completeMetadata.element("analyticsWarningLines").innerHTML,/Class|Gender/);
+    assert.doesNotMatch(completeMetadata.element("analyticsUploadMessage").textContent,/Class|Gender/);
+  });
+
   function deferred() { let resolve, reject; const promise=new Promise((yes,no)=>{resolve=yes;reject=no}); return {promise,resolve,reject}; }
   function guardedLoader(guard, application, analyticsEvents, name, work) {
     const loadId=guard.begin();
