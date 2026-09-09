@@ -1,0 +1,127 @@
+(function (root) {
+  "use strict";
+
+  const DISTRIBUTION_BANDS = Object.freeze(Array.from({ length: 10 }, (_, index) => ({
+    label: `${index * 10}-${index * 10 + 10}`,
+    minimum: index * 10,
+    maximum: index * 10 + 10
+  })));
+
+  const round2 = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  const mean = values => values.length ? round2(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+
+  function filterPopulation(students, filters = {}) {
+    return students.filter(student =>
+      (!filters.className || filters.className === "All" || student.className === filters.className) &&
+      (!filters.gender || filters.gender === "All" || student.gender === filters.gender)
+    );
+  }
+
+  function distributionFor(marks) {
+    const counts = Object.fromEntries(DISTRIBUTION_BANDS.map(band => [band.label, 0]));
+    marks.filter(mark => mark > 0).forEach(mark => {
+      const index = mark >= 100 ? 9 : Math.min(9, Math.floor(mark / 10));
+      counts[DISTRIBUTION_BANDS[index].label]++;
+    });
+    return counts;
+  }
+
+  function subjectPerformance(students, subjects, passMark) {
+    return subjects.map((subject, subjectIndex) => {
+      const marks = students.map(student => student.marks[subjectIndex]);
+      const presentMarks = marks.filter(mark => mark > 0);
+      const passCount = presentMarks.filter(mark => mark >= passMark).length;
+      const failCount = presentMarks.length - passCount;
+      const highestMark = presentMarks.length ? Math.max(...presentMarks) : null;
+      const toppers = highestMark == null ? [] : students
+        .filter(student => student.marks[subjectIndex] === highestMark)
+        .map(student => ({ name: student.name, className: student.className }));
+      return {
+        subject: subject.name,
+        studentCount: students.length,
+        presentCount: presentMarks.length,
+        absentCount: marks.length - presentMarks.length,
+        passCount,
+        failCount,
+        passPercentage: presentMarks.length ? round2(passCount / presentMarks.length * 100) : null,
+        averageMark: mean(presentMarks),
+        highestMark,
+        lowestMark: presentMarks.length ? Math.min(...presentMarks) : null,
+        distribution: distributionFor(presentMarks),
+        toppers,
+        supportCount: failCount
+      };
+    });
+  }
+
+  function overallToppers(students, subjects) {
+    if (!students.length) return [];
+    const highestTotal = Math.max(...students.map(student => student.totalMarks));
+    return students.filter(student => student.totalMarks === highestTotal).map(student => ({
+      name: student.name,
+      className: student.className,
+      totalMarks: student.totalMarks,
+      percentage: student.percentage,
+      subjectMarks: Object.fromEntries(subjects.map((subject, index) => [subject.name, student.marks[index]]))
+    }));
+  }
+
+  function groupByClass(students) {
+    const groups = new Map();
+    students.forEach(student => {
+      if (!groups.has(student.className)) groups.set(student.className, []);
+      groups.get(student.className).push(student);
+    });
+    return groups;
+  }
+
+  function classOverallPerformance(students) {
+    return [...groupByClass(students)].map(([className, classStudents]) => ({
+      className,
+      studentCount: classStudents.length,
+      passed: classStudents.filter(student => student.result === "PASS").length,
+      failed: classStudents.filter(student => student.result === "FAIL").length,
+      absentResult: classStudents.filter(student => student.result === "ABSENT").length,
+      averageMarks: mean(classStudents.map(student => student.totalMarks)),
+      averagePercentage: mean(classStudents.map(student => student.percentage))
+    }));
+  }
+
+  function classSubjectMatrices(students, subjects, passMark) {
+    const averages = [], passPercentages = [], failureCounts = [];
+    for (const [className, classStudents] of groupByClass(students)) {
+      const averageValues = {}, passValues = {}, failureValues = {};
+      subjects.forEach((subject, index) => {
+        const present = classStudents.map(student => student.marks[index]).filter(mark => mark > 0);
+        const passed = present.filter(mark => mark >= passMark).length;
+        averageValues[subject.name] = mean(present);
+        passValues[subject.name] = present.length ? round2(passed / present.length * 100) : null;
+        failureValues[subject.name] = present.length - passed;
+      });
+      averages.push({ className, values: averageValues });
+      passPercentages.push({ className, values: passValues });
+      failureCounts.push({ className, values: failureValues });
+    }
+    return { averages, passPercentages, failureCounts };
+  }
+
+  function analyze(students, subjects, configuration, filters = {}) {
+    const passMark = Number(configuration.passMark);
+    if (!Number.isFinite(passMark) || passMark <= 0) throw new Error("A positive Pass Mark is required.");
+    const population = filterPopulation(students, filters);
+    const subjectSummary = subjectPerformance(population, subjects, passMark);
+    return {
+      population,
+      subjectSummary,
+      subjectToppers: subjectSummary.map(({ subject, highestMark, toppers }) => ({ subject, highestMark, toppers })),
+      overallToppers: overallToppers(population, subjects),
+      supportBySubject: subjectSummary.map(({ subject, supportCount }) => ({ subject, count: supportCount })),
+      classPerformance: classOverallPerformance(population),
+      matrices: classSubjectMatrices(population, subjects, passMark)
+    };
+  }
+
+  const api = { DISTRIBUTION_BANDS, filterPopulation, distributionFor, subjectPerformance, overallToppers, classOverallPerformance, classSubjectMatrices, analyze };
+  if (typeof module !== "undefined") module.exports = api;
+  root.AcadPulsePage2Analytics = api;
+})(typeof globalThis !== "undefined" ? globalThis : this);
