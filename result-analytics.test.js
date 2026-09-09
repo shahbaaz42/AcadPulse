@@ -314,7 +314,7 @@ test("dropping a workbook clears the picker so its previous file can be reselect
 });
 
 (async function integration() {
-  function browserUpload(rows) {
+  function browserUpload(rows, workbookBytes) {
     const elements=new Map();
     const element=id=>{
       if(elements.has(id)) return elements.get(id);
@@ -328,16 +328,71 @@ test("dropping a workbook clears the picker so its previous file can be reselect
     const sandbox={document,console,setTimeout,clearTimeout,globalThis:null};
     sandbox.window=sandbox; sandbox.globalThis=sandbox;
     sandbox.AcadPulseResultCore=core;
-    sandbox.XLSX={read:async()=>({SheetNames:["Results"],Sheets:{Results:{}}}),utils:{sheet_to_json:()=>rows}};
+    sandbox.XLSX=workbookBytes ? global.XLSX : {read:async()=>({SheetNames:["Results"],Sheets:{Results:{}}}),utils:{sheet_to_json:()=>rows}};
     vm.runInNewContext(fs.readFileSync("result-analytics.js","utf8"),sandbox,{filename:"result-analytics.js"});
-    const upload=element("analyticsFileInput").listeners.change({target:{files:[{name:"live-test.xlsx",size:100,arrayBuffer:async()=>new ArrayBuffer(0)}]}});
+    const upload=element("analyticsFileInput").listeners.change({target:{files:[{name:"live-test.xlsx",size:workbookBytes?.byteLength||100,arrayBuffer:async()=>workbookBytes||new ArrayBuffer(0)}]}});
     return Promise.resolve(upload).then(()=>({elements,element}));
   }
 
   test("deployed page cache-busts the Result Analytics browser bundle",()=>{
     const html=fs.readFileSync("index.html","utf8");
-    assert.match(html,/result-analytics-core\.js\?v=20260909-2/);
-    assert.match(html,/result-analytics\.js\?v=20260909-2/);
+    assert.match(html,/vendor\/acadpulse-xlsx\.js\?v=20260909-3/);
+    assert.match(html,/result-analytics-core\.js\?v=20260909-3/);
+    assert.match(html,/result-analytics\.js\?v=20260909-3/);
+  });
+
+  async function realWorkbook(classValue, genderValue) {
+    const workbook=global.XLSX.utils.book_new();
+    const rows=[["ADMNO","STUDENT NAME","Science","Maths","Class","Gender"],["A1","Live case",45,50,classValue,genderValue]];
+    global.XLSX.utils.book_append_sheet(workbook,global.XLSX.utils.aoa_to_sheet(rows),"Results");
+    return global.XLSX.write(workbook,{type:"array",bookType:"xlsx"});
+  }
+
+  for(const classValue of [""," \t "]){
+    const bytes=await realWorkbook(classValue,"BOY");
+    const workbook=await global.XLSX.read(bytes,{type:"array"});
+    const sheet=workbook.Sheets[workbook.SheetNames[0]];
+    const parsedRows=global.XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+    const header=parsedRows[0], parsedRow=parsedRows[1];
+    const className=header.indexOf("Class"), gender=header.indexOf("Gender");
+    test(`real XLSX preserves column alignment for ${classValue ? "whitespace-only" : "blank"} Class`,()=>{
+      assert.strictEqual(className,4); assert.strictEqual(gender,5);
+      assert.strictEqual(parsedRow[className],classValue); assert.strictEqual(parsedRow[gender],"BOY");
+      assert.strictEqual(parsedRow.length,header.length);
+    });
+    test("real XLSX structure detection uses the aligned Class column before Gender",()=>{
+      assert.throws(()=>core.detectResultStructure(parsedRows),error=>
+        error.code==="WORKBOOK_ROW_VALIDATION" && error.message==="Class & Section is missing in Excel row 2."
+      );
+    });
+    const {element}=await browserUpload(null,bytes);
+    test("real XLSX browser route blocks missing Class before showing optional Gender warnings",()=>{
+      assert.strictEqual(element("analyticsUploadMessage").textContent,"Class & Section is missing in Excel row 2.");
+      assert.strictEqual(element("analyticsGenerate").disabled,true);
+      assert.strictEqual(element("analyticsWarnings").hidden,true);
+    });
+  }
+
+  const realMissingGender=await browserUpload(null,await realWorkbook("X BA",""));
+  test("real XLSX browser route allows blank Gender and shows its warning",()=>{
+    assert.strictEqual(realMissingGender.element("analyticsGenerate").disabled,false);
+    assert.match(realMissingGender.element("analyticsWarningLines").innerHTML,/Gender is missing in Excel row 2\./);
+  });
+
+  const completeBytes=await realWorkbook("X BA","BOY");
+  const completeWorkbook=await global.XLSX.read(completeBytes,{type:"array"});
+  const completeRows=global.XLSX.utils.sheet_to_json(completeWorkbook.Sheets.Results,{header:1,defval:"",raw:true});
+  const completeStructure=core.detectResultStructure(completeRows);
+  test("real XLSX detected structure points Class and Gender at the parsed values",()=>{
+    assert.strictEqual(completeStructure.columns.className,4);
+    assert.strictEqual(completeStructure.columns.gender,5);
+    assert.strictEqual(completeStructure.dataRows[0][completeStructure.columns.className],"X BA");
+    assert.strictEqual(completeStructure.dataRows[0][completeStructure.columns.gender],"BOY");
+  });
+  const realComplete=await browserUpload(null,completeBytes);
+  test("real XLSX browser route accepts populated Class and Gender",()=>{
+    assert.strictEqual(realComplete.element("analyticsGenerate").disabled,false);
+    assert.doesNotMatch(realComplete.element("analyticsWarningLines").innerHTML,/Class|Gender/);
   });
 
   for(const classValue of [""," \t "]){
