@@ -17,9 +17,11 @@
   const compareToppers = (a, b) => String(a.name).localeCompare(String(b.name)) || String(a.className).localeCompare(String(b.className));
 
   function filterPopulation(students, filters = {}) {
+    const hasClassFilter = filters.className !== undefined && filters.className !== null && filters.className !== "";
+    const hasGenderFilter = filters.gender !== undefined && filters.gender !== null && filters.gender !== "";
     return students.filter(student =>
-      (!filters.className || filters.className === "All" || student.className === filters.className) &&
-      (!filters.gender || filters.gender === "All" || student.gender === filters.gender)
+      (!hasClassFilter || student.className === filters.className) &&
+      (!hasGenderFilter || student.gender === filters.gender)
     );
   }
 
