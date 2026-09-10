@@ -10,14 +10,48 @@
   const formatPct = value => value == null ? "—" : `${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
   const state = { students: [], subjects: [], configuration: null, structure: null };
 
+  function mountPage2() {
+    const dashboard = $("analyticsDashboard");
+    if (!dashboard || $("analyticsPage2")) return dashboard;
+    dashboard.insertAdjacentHTML("beforeend", `
+      <section id="analyticsPage2" class="analytics-page2" hidden>
+        <div class="dashboard-heading"><div><span class="eyebrow">PAGE 2 · SUBJECT &amp; CLASS PERFORMANCE</span><h2 id="page2Title">Result Analytics</h2><p id="page2Subtitle"></p></div><span class="local-badge">● Browser-local analysis</span></div>
+        <div class="dashboard-filters">
+          <label>Class<select id="page2ClassFilter"><option value="">All</option></select></label>
+          <label id="page2GenderFilterField">Gender<select id="page2GenderFilter"><option value="">All</option></select></label>
+          <button id="page2ResetFilters" class="filter-reset" type="button">Reset filters</button>
+          <span id="page2FilterCount" aria-live="polite"></span>
+        </div>
+        <div id="page2Empty" class="message" hidden>No students match these filters.</div>
+        <div class="page2-grid">
+          <article class="dashboard-panel"><h3>Highest Mark by Subject <span>present students only</span></h3><div id="page2HighestChart"></div></article>
+          <article class="dashboard-panel"><h3>Subject Topper(s) &amp; Class <span>ties preserved</span></h3><div class="page2-table-scroll"><table id="page2SubjectToppers"></table></div></article>
+          <article class="dashboard-panel page2-wide"><h3>Subject Performance Summary <span>0 = ABSENT; distributions use % of Maximum Marks</span></h3><div class="page2-table-scroll"><table id="page2SubjectSummary"></table></div></article>
+          <article class="dashboard-panel"><h3>Students Requiring Support by Subject <span>present students below Pass Mark</span></h3><div id="page2SupportChart"></div></article>
+          <article class="dashboard-panel"><h3>Overall Topper Summary <span>responds to filters</span></h3><div id="page2OverallTopper"></div></article>
+          <article class="dashboard-panel page2-wide"><h3>Class Overall Performance Comparison</h3><div class="page2-table-scroll"><table id="page2ClassPerformance"></table></div></article>
+          <article class="dashboard-panel page2-wide"><h3>Class × Subject Analysis</h3><p class="page2-note">All matrices recalculate from the currently filtered population. Average and Pass % exclude absent marks.</p><div class="matrix-grid">
+            <div><h3>Average Mark Matrix</h3><div class="page2-table-scroll"><table id="page2AverageMatrix"></table></div></div>
+            <div><h3>Pass % Matrix</h3><div class="page2-table-scroll"><table id="page2PassMatrix"></table></div></div>
+            <div><h3>Failure Count Matrix</h3><div class="page2-table-scroll"><table id="page2FailureMatrix"></table></div></div>
+          </div></article>
+        </div>
+      </section>`);
+    return dashboard;
+  }
+
   function options(values) {
     return `<option value="">All</option>${[...new Set(values.filter(value => value !== undefined && value !== null && value !== ""))]
       .sort((a, b) => String(a).localeCompare(String(b)))
       .map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`;
   }
 
+  function maxValue(items) {
+    return items.reduce((maximum, item) => Math.max(maximum, Number(item.value) || 0), 1);
+  }
+
   function barList(items, valueFormatter = format, maximum = null) {
-    const max = maximum == null ? Math.max(1, ...items.map(item => Number(item.value) || 0)) : Math.max(1, maximum);
+    const max = maximum == null ? maxValue(items) : Math.max(1, maximum);
     return `<div class="page2-bars">${items.map(item => {
       const value = Number(item.value) || 0;
       const width = Math.max(value > 0 ? 2 : 0, Math.min(100, value / max * 100));
@@ -53,7 +87,7 @@
   function matrixTable(rows, type) {
     const subjectNames = state.subjects.map(subject => subject.name);
     const failureValues = type === "failure" ? rows.flatMap(row => subjectNames.map(subject => Number(row.values[subject]) || 0)) : [];
-    const maxFailure = failureValues.length ? Math.max(...failureValues) : 0;
+    const maxFailure = failureValues.reduce((maximum, value) => Math.max(maximum, value), 0);
     return `<thead><tr><th>Class</th>${subjectNames.map(subject => `<th>${escapeHtml(subject)}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr><td class="name">${escapeHtml(row.className)}</td>${subjectNames.map(subject => {
       const value = row.values[subject];
       const rendered = type === "pass" ? formatPct(value) : format(value);
@@ -72,7 +106,6 @@
     const analysis = page2.analyze(state.students, state.subjects, state.configuration, filters);
     $("page2FilterCount").textContent = `Showing ${analysis.population.length} of ${state.students.length} students`;
     $("page2Empty").hidden = analysis.population.length > 0;
-
     $("page2HighestChart").innerHTML = barList(analysis.subjectToppers.map(item => ({ label: item.subject, value: item.highestMark || 0 })), format, Number(state.configuration.maximumMarks));
     $("page2SupportChart").innerHTML = barList(analysis.supportBySubject.map(item => ({ label: item.subject, value: item.count })), format);
     $("page2SubjectToppers").innerHTML = `<thead><tr><th>Subject</th><th>Highest Mark</th><th>Topper(s) &amp; Class</th></tr></thead><tbody>${analysis.subjectToppers.map(item => `<tr><td class="name">${escapeHtml(item.subject)}</td><td>${format(item.highestMark)}</td><td class="topper-list">${topperLines(item.toppers)}</td></tr>`).join("")}</tbody>`;
@@ -92,10 +125,7 @@
       const workbook = await XLSX.read(fileBytes, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       state.structure = core.detectResultStructure(XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: true }));
-      state.configuration = {
-        maximumMarks: $("analyticsMaximum").value,
-        passMark: $("analyticsPassMark").value
-      };
+      state.configuration = { maximumMarks: $("analyticsMaximum").value, passMark: $("analyticsPassMark").value };
       state.students = core.deriveStudents(state.structure, state.configuration);
       state.subjects = state.structure.subjects;
       $("page2ClassFilter").innerHTML = options(state.students.map(student => student.className));
@@ -110,8 +140,8 @@
     }
   }
 
-  const dashboard = $("analyticsDashboard");
-  if (!dashboard) return;
+  const dashboard = mountPage2();
+  if (!dashboard || !core || !page2) return;
   new MutationObserver(() => { if (!dashboard.hidden) preparePage2(); }).observe(dashboard, { attributes: true, attributeFilter: ["hidden"] });
   $("page2ClassFilter").addEventListener("change", render);
   $("page2GenderFilter").addEventListener("change", render);
