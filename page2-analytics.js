@@ -95,17 +95,17 @@
   function classSubjectMatrices(students, subjects, passMark) {
     const averages = [], passPercentages = [], failureCounts = [];
     for (const [className, classStudents] of groupByClass(students)) {
-      const averageValues = {}, passValues = {}, failureValues = {};
+      const averageEntries = [], passEntries = [], failureEntries = [];
       subjects.forEach((subject, index) => {
         const present = classStudents.map(student => student.marks[index]).filter(mark => mark > 0);
         const passed = present.filter(mark => mark >= passMark).length;
-        averageValues[subject.name] = mean(present);
-        passValues[subject.name] = present.length ? round2(passed / present.length * 100) : null;
-        failureValues[subject.name] = present.length - passed;
+        averageEntries.push([subject.name, mean(present)]);
+        passEntries.push([subject.name, present.length ? round2(passed / present.length * 100) : null]);
+        failureEntries.push([subject.name, present.length - passed]);
       });
-      averages.push({ className, values: averageValues });
-      passPercentages.push({ className, values: passValues });
-      failureCounts.push({ className, values: failureValues });
+      averages.push({ className, values: Object.fromEntries(averageEntries) });
+      passPercentages.push({ className, values: Object.fromEntries(passEntries) });
+      failureCounts.push({ className, values: Object.fromEntries(failureEntries) });
     }
     return { averages, passPercentages, failureCounts };
   }
@@ -113,8 +113,9 @@
   function analyze(students, subjects, configuration, filters = {}) {
     const passMark = Number(configuration.passMark);
     const maximumMarks = Number(configuration.maximumMarks);
-    if (!Number.isFinite(passMark) || passMark <= 0) throw new Error("A positive Pass Mark is required.");
-    if (!Number.isFinite(maximumMarks) || maximumMarks <= 0) throw new Error("A positive Maximum Marks value is required.");
+    if (!Number.isInteger(passMark) || passMark <= 0) throw new Error("Pass Mark must be a positive whole number.");
+    if (!Number.isInteger(maximumMarks) || maximumMarks <= 0) throw new Error("Maximum Marks must be a positive whole number.");
+    if (passMark > maximumMarks) throw new Error("Pass Mark cannot exceed Maximum Marks.");
     const population = filterPopulation(students, filters);
     const subjectSummary = subjectPerformance(population, subjects, passMark, maximumMarks);
     return {
