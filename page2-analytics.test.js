@@ -71,6 +71,15 @@ test("class by subject matrices calculate present-only averages and pass rates",
   assert.deepStrictEqual(analysis.matrices.passPercentages[0], { className: "X A", values: { Math: 100, Science: 50, Music: 0 } });
   assert.deepStrictEqual(analysis.matrices.failureCounts[0], { className: "X A", values: { Math: 0, Science: 1, Music: 1 } });
 });
+test("class matrices preserve a valid __proto__ subject key", () => {
+  const protoSubjects = [{ name: "__proto__" }];
+  const protoStudents = [{ name: "Alex", className: "X A", gender: "BOY", marks: [75], totalMarks: 75, percentage: 75, result: "PASS" }];
+  const matrices = page2.classSubjectMatrices(protoStudents, protoSubjects, 33);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(matrices.averages[0].values, "__proto__"), true);
+  assert.strictEqual(matrices.averages[0].values.__proto__, 75);
+  assert.strictEqual(matrices.passPercentages[0].values.__proto__, 100);
+  assert.strictEqual(matrices.failureCounts[0].values.__proto__, 0);
+});
 test("Class & Section and Gender filters combine and recalculate", () => {
   const filtered = page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 33 }, { className: "X B", gender: "GIRL" });
   assert.deepStrictEqual(filtered.population.map(x => x.name), ["Drew"]);
@@ -98,8 +107,11 @@ test("an all-absent subject has null summary measures rather than zero marks", (
   assert.deepStrictEqual(music.toppers, []);
 });
 test("analysis rejects invalid configuration", () => {
-  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 0 }), /positive Pass Mark/);
-  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 0, passMark: 33 }), /positive Maximum Marks/);
+  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 0 }), /positive whole number/);
+  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 0, passMark: 33 }), /positive whole number/);
+  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 100.5, passMark: 33 }), /Maximum Marks must be a positive whole number/);
+  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 33.5 }), /Pass Mark must be a positive whole number/);
+  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 30, passMark: 33 }), /Pass Mark cannot exceed Maximum Marks/);
 });
 
 console.log(`${passed} Page 2 analytics tests passed.`);
