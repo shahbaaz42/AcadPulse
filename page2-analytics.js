@@ -7,7 +7,12 @@
     maximum: index * 10 + 10
   })));
 
-  const round2 = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  const round2 = value => {
+    const number = Number(value);
+    const scaled = number * 100;
+    const adjustment = Number.EPSILON * Math.max(1, Math.abs(scaled));
+    return Math.round(scaled + adjustment) / 100;
+  };
   const mean = values => values.length ? round2(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
   const compareToppers = (a, b) => String(a.name).localeCompare(String(b.name)) || String(a.className).localeCompare(String(b.className));
 
