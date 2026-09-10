@@ -119,9 +119,25 @@ test("Class & Section and Gender filters combine and recalculate", () => {
   assert.strictEqual(filtered.subjectSummary[0].averageMark, 10);
   assert.deepStrictEqual(filtered.classPerformance.map(x => x.className), ["X B"]);
 });
-test("All and omitted filters impose no restriction", () => {
-  assert.strictEqual(page2.filterPopulation(students, { className: "All", gender: "All" }).length, 5);
+test("empty-string and omitted filters impose no restriction", () => {
+  assert.strictEqual(page2.filterPopulation(students, { className: "", gender: "" }).length, 5);
   assert.strictEqual(page2.filterPopulation(students).length, 5);
+});
+test("literal All remains filterable as a real Class & Section value", () => {
+  const literalAllStudents = [
+    { name: "Class All", className: "All", gender: "BOY", marks: [80], totalMarks: 80, percentage: 80, result: "PASS" },
+    { name: "Other Class", className: "X A", gender: "BOY", marks: [70], totalMarks: 70, percentage: 70, result: "PASS" }
+  ];
+  const filtered = page2.filterPopulation(literalAllStudents, { className: "All" });
+  assert.deepStrictEqual(filtered.map(student => student.name), ["Class All"]);
+});
+test("literal All remains filterable as a real Gender value", () => {
+  const literalAllStudents = [
+    { name: "Gender All", className: "X A", gender: "All", marks: [80], totalMarks: 80, percentage: 80, result: "PASS" },
+    { name: "Other Gender", className: "X A", gender: "BOY", marks: [70], totalMarks: 70, percentage: 70, result: "PASS" }
+  ];
+  const filtered = page2.filterPopulation(literalAllStudents, { gender: "All" });
+  assert.deepStrictEqual(filtered.map(student => student.name), ["Gender All"]);
 });
 test("empty filtered populations retain subjects with null safe metrics", () => {
   const empty = page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 33 }, { className: "Not present" });
