@@ -27,6 +27,38 @@ test("subject counts distinguish absence, failure, and passing presence", () => 
   { studentCount: 5, presentCount: 4, absentCount: 1, passCount: 3, failCount: 1 }
 ));
 test("subject percentages and averages use present students only", () => { assert.strictEqual(bySubject("Math").passPercentage, 75); assert.strictEqual(bySubject("Math").averageMark, 72.5); });
+test("half-cent averages round upward consistently", () => {
+  const marks = Array(39).fill(10).concat(13);
+  const halfTieStudents = marks.map((mark, index) => ({
+    name: `Student ${index + 1}`,
+    className: "X A",
+    gender: "BOY",
+    marks: [mark],
+    totalMarks: mark,
+    percentage: mark,
+    result: "FAIL"
+  }));
+  const halfTieSubjects = [{ name: "Math" }];
+  const result = page2.analyze(halfTieStudents, halfTieSubjects, { maximumMarks: 100, passMark: 33 });
+  assert.strictEqual(result.subjectSummary[0].averageMark, 10.08);
+  assert.strictEqual(result.classPerformance[0].averageMarks, 10.08);
+  assert.strictEqual(result.classPerformance[0].averagePercentage, 10.08);
+  assert.strictEqual(result.matrices.averages[0].values.Math, 10.08);
+});
+test("half-cent pass percentages round upward consistently", () => {
+  const passRateStudents = Array.from({ length: 32 }, (_, index) => ({
+    name: `Student ${index + 1}`,
+    className: "X A",
+    gender: "BOY",
+    marks: [index === 0 ? 33 : 1],
+    totalMarks: index === 0 ? 33 : 1,
+    percentage: index === 0 ? 33 : 1,
+    result: index === 0 ? "PASS" : "FAIL"
+  }));
+  const result = page2.analyze(passRateStudents, [{ name: "Math" }], { maximumMarks: 100, passMark: 33 });
+  assert.strictEqual(result.subjectSummary[0].passPercentage, 3.13);
+  assert.strictEqual(result.matrices.passPercentages[0].values.Math, 3.13);
+});
 test("highest and lowest marks exclude absence zero", () => { assert.strictEqual(bySubject("Music").highestMark, 100); assert.strictEqual(bySubject("Music").lowestMark, 10); });
 test("distribution excludes zero and applies lower-inclusive boundaries", () => assert.deepStrictEqual(bySubject("Music").distribution, {
   "0-10": 0, "10-20": 1, "20-30": 1, "30-40": 0, "40-50": 0, "50-60": 0, "60-70": 0, "70-80": 1, "80-90": 0, "90-100": 1
