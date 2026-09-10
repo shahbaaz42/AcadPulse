@@ -142,7 +142,11 @@
 
   const dashboard = mountPage2();
   if (!dashboard || !core || !page2) return;
-  new MutationObserver(() => { if (!dashboard.hidden) preparePage2(); }).observe(dashboard, { attributes: true, attributeFilter: ["hidden"] });
+  const initializePage2IfVisible = () => {
+    if (!dashboard.hidden) preparePage2();
+  };
+  new MutationObserver(initializePage2IfVisible).observe(dashboard, { attributes: true, attributeFilter: ["hidden"] });
+  initializePage2IfVisible();
   $("page2ClassFilter").addEventListener("change", render);
   $("page2GenderFilter").addEventListener("change", render);
   $("page2ResetFilters").addEventListener("click", () => { $("page2ClassFilter").value = ""; $("page2GenderFilter").value = ""; render(); });
