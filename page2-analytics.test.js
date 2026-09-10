@@ -18,7 +18,7 @@ const rows = [
 ];
 const structure = core.detectResultStructure(rows);
 const students = core.deriveStudents(structure, { maximumMarks: 100, passMark: 33 });
-const analysis = page2.analyze(students, structure.subjects, { passMark: 33 });
+const analysis = page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 33 });
 const bySubject = name => analysis.subjectSummary.find(item => item.subject === name);
 
 test("every dynamically detected subject receives a summary", () => assert.deepStrictEqual(analysis.subjectSummary.map(x => x.subject), ["Math", "Science", "Music"]));
@@ -34,6 +34,25 @@ test("distribution excludes zero and applies lower-inclusive boundaries", () => 
 test("distribution assigns 1, 9, 10, 19, 90, 99 and 100 safely", () => assert.deepStrictEqual(page2.distributionFor([0, 1, 9, 10, 19, 90, 99, 100]), {
   "0-10": 2, "10-20": 2, "20-30": 0, "30-40": 0, "40-50": 0, "50-60": 0, "60-70": 0, "70-80": 0, "80-90": 0, "90-100": 3
 }));
+test("distribution normalizes marks using configured Maximum Marks", () => assert.deepStrictEqual(page2.distributionFor([0, 15, 30, 149, 150], 150), {
+  "0-10": 0, "10-20": 1, "20-30": 1, "30-40": 0, "40-50": 0, "50-60": 0, "60-70": 0, "70-80": 0, "80-90": 0, "90-100": 2
+}));
+test("analysis normalizes only distribution values and preserves raw-mark metrics", () => {
+  const highRows = [
+    ["ADMNO", "STUDENT NAME", "Math", "Class", "Gender"],
+    ["H1", "High", 150, "X A", "BOY"],
+    ["H2", "Middle", 75, "X A", "GIRL"]
+  ];
+  const highStructure = core.detectResultStructure(highRows);
+  const highStudents = core.deriveStudents(highStructure, { maximumMarks: 150, passMark: 50 });
+  const summary = page2.analyze(highStudents, highStructure.subjects, { maximumMarks: 150, passMark: 50 }).subjectSummary[0];
+  assert.deepStrictEqual(
+    { averageMark: summary.averageMark, highestMark: summary.highestMark, lowestMark: summary.lowestMark, passCount: summary.passCount },
+    { averageMark: 112.5, highestMark: 150, lowestMark: 75, passCount: 2 }
+  );
+  assert.strictEqual(summary.distribution["50-60"], 1);
+  assert.strictEqual(summary.distribution["90-100"], 1);
+});
 test("all tied subject toppers include name and Class & Section", () => assert.deepStrictEqual(bySubject("Math").toppers, [{ name: "Alex", className: "X A" }]));
 test("subject topper ties are preserved", () => {
   const tied = page2.subjectPerformance([students[1], students[2]], structure.subjects, 33)[0];
@@ -53,7 +72,7 @@ test("class by subject matrices calculate present-only averages and pass rates",
   assert.deepStrictEqual(analysis.matrices.failureCounts[0], { className: "X A", values: { Math: 0, Science: 1, Music: 1 } });
 });
 test("Class & Section and Gender filters combine and recalculate", () => {
-  const filtered = page2.analyze(students, structure.subjects, { passMark: 33 }, { className: "X B", gender: "GIRL" });
+  const filtered = page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 33 }, { className: "X B", gender: "GIRL" });
   assert.deepStrictEqual(filtered.population.map(x => x.name), ["Drew"]);
   assert.strictEqual(filtered.subjectSummary[0].studentCount, 1);
   assert.strictEqual(filtered.subjectSummary[0].averageMark, 10);
@@ -64,7 +83,7 @@ test("All and omitted filters impose no restriction", () => {
   assert.strictEqual(page2.filterPopulation(students).length, 5);
 });
 test("empty filtered populations retain subjects with null safe metrics", () => {
-  const empty = page2.analyze(students, structure.subjects, { passMark: 33 }, { className: "Not present" });
+  const empty = page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 33 }, { className: "Not present" });
   assert.strictEqual(empty.population.length, 0);
   assert.deepStrictEqual(empty.subjectSummary.map(x => [x.studentCount, x.presentCount, x.passPercentage, x.averageMark, x.highestMark, x.lowestMark]), [[0, 0, null, null, null, null], [0, 0, null, null, null, null], [0, 0, null, null, null, null]]);
   assert.deepStrictEqual(empty.overallToppers, []); assert.deepStrictEqual(empty.classPerformance, []); assert.deepStrictEqual(empty.matrices.averages, []);
@@ -78,6 +97,9 @@ test("an all-absent subject has null summary measures rather than zero marks", (
   assert.deepStrictEqual([music.presentCount, music.absentCount, music.passPercentage, music.averageMark, music.highestMark, music.lowestMark], [0, 1, null, null, null, null]);
   assert.deepStrictEqual(music.toppers, []);
 });
-test("analysis rejects an invalid pass mark", () => assert.throws(() => page2.analyze(students, structure.subjects, { passMark: 0 }), /positive Pass Mark/));
+test("analysis rejects invalid configuration", () => {
+  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 100, passMark: 0 }), /positive Pass Mark/);
+  assert.throws(() => page2.analyze(students, structure.subjects, { maximumMarks: 0, passMark: 33 }), /positive Maximum Marks/);
+});
 
 console.log(`${passed} Page 2 analytics tests passed.`);

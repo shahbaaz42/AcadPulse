@@ -17,16 +17,19 @@
     );
   }
 
-  function distributionFor(marks) {
+  function distributionFor(marks, maximumMarks = 100) {
+    const maximum = Number(maximumMarks);
+    if (!Number.isFinite(maximum) || maximum <= 0) throw new Error("A positive Maximum Marks value is required.");
     const counts = Object.fromEntries(DISTRIBUTION_BANDS.map(band => [band.label, 0]));
     marks.filter(mark => mark > 0).forEach(mark => {
-      const index = mark >= 100 ? 9 : Math.min(9, Math.floor(mark / 10));
+      const percentage = mark / maximum * 100;
+      const index = percentage >= 100 ? 9 : Math.min(9, Math.floor(percentage / 10));
       counts[DISTRIBUTION_BANDS[index].label]++;
     });
     return counts;
   }
 
-  function subjectPerformance(students, subjects, passMark) {
+  function subjectPerformance(students, subjects, passMark, maximumMarks = 100) {
     return subjects.map((subject, subjectIndex) => {
       const marks = students.map(student => student.marks[subjectIndex]);
       const presentMarks = marks.filter(mark => mark > 0);
@@ -47,7 +50,7 @@
         averageMark: mean(presentMarks),
         highestMark,
         lowestMark: presentMarks.length ? Math.min(...presentMarks) : null,
-        distribution: distributionFor(presentMarks),
+        distribution: distributionFor(presentMarks, maximumMarks),
         toppers,
         supportCount: failCount
       };
@@ -107,9 +110,11 @@
 
   function analyze(students, subjects, configuration, filters = {}) {
     const passMark = Number(configuration.passMark);
+    const maximumMarks = Number(configuration.maximumMarks);
     if (!Number.isFinite(passMark) || passMark <= 0) throw new Error("A positive Pass Mark is required.");
+    if (!Number.isFinite(maximumMarks) || maximumMarks <= 0) throw new Error("A positive Maximum Marks value is required.");
     const population = filterPopulation(students, filters);
-    const subjectSummary = subjectPerformance(population, subjects, passMark);
+    const subjectSummary = subjectPerformance(population, subjects, passMark, maximumMarks);
     return {
       population,
       subjectSummary,
