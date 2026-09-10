@@ -9,6 +9,7 @@
 
   const round2 = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
   const mean = values => values.length ? round2(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+  const compareToppers = (a, b) => String(a.name).localeCompare(String(b.name)) || String(a.className).localeCompare(String(b.className));
 
   function filterPopulation(students, filters = {}) {
     return students.filter(student =>
@@ -38,7 +39,8 @@
       const highestMark = presentMarks.length ? Math.max(...presentMarks) : null;
       const toppers = highestMark == null ? [] : students
         .filter(student => student.marks[subjectIndex] === highestMark)
-        .map(student => ({ name: student.name, className: student.className }));
+        .map(student => ({ name: student.name, className: student.className }))
+        .sort(compareToppers);
       return {
         subject: subject.name,
         studentCount: students.length,
@@ -66,7 +68,7 @@
       totalMarks: student.totalMarks,
       percentage: student.percentage,
       subjectMarks: Object.fromEntries(subjects.map((subject, index) => [subject.name, student.marks[index]]))
-    }));
+    })).sort(compareToppers);
   }
 
   function groupByClass(students) {
