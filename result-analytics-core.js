@@ -46,6 +46,13 @@
     return error;
   }
 
+  function duplicateSubjectError(subjectName) {
+    const error = new Error(`Duplicate subject header found: "${subjectName}". Subject names must be unique.`);
+    error.code = "WORKBOOK_STRUCTURE_VALIDATION";
+    error.subject = subjectName;
+    return error;
+  }
+
   function createLatestLoadGuard() {
     let latestLoadId = 0;
     return Object.freeze({
@@ -81,6 +88,11 @@
       admissionRows.set(admission, dataRowNumbers[index]);
     });
     if (!subjects.length) throw new Error("No subject columns were detected.");
+    const subjectNames = new Set();
+    subjects.forEach(subject => {
+      if (subjectNames.has(subject.name)) throw duplicateSubjectError(subject.name);
+      subjectNames.add(subject.name);
+    });
     const classes = [...new Set(dataRows.map(row => String(row[columns.className]).trim()))];
     return { headerIndex, headers, columns, subjects, dataRows, dataRowNumbers, classes };
   }
