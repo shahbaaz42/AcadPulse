@@ -12,6 +12,13 @@ const students = core.deriveStudents(structure,{maximumMarks:100,passMark:33});
 
 test("metadata aliases are detected",()=>assert.deepStrictEqual(structure.columns,{roll:0,admission:1,name:2,className:5,section:-1,gender:6,house:-1}));
 test("subjects are detected dynamically by excluding metadata",()=>assert.deepStrictEqual(structure.subjects.map(s=>s.name),["Physics","Art"]));
+test("duplicate subject headers are rejected after trimming whitespace",()=>{
+  const duplicateRows=[["Admission No","Student Name","Maths","  Maths  ","Class"],["A1","Student",80,90,"X A"]];
+  assert.throws(
+    ()=>core.detectResultStructure(duplicateRows),
+    error=>error.code==="WORKBOOK_STRUCTURE_VALIDATION" && error.message==="Duplicate subject header found: Maths."
+  );
+});
 test("House uses Scoreboard-compatible metadata recognition and is never treated as a subject",()=>{
   const houseRows=[["Roll Number","Admission Number","Student Name","Science","Social","Class","Gender","HOUSE"],[1,"A1","Student",75,68,"X A","BOY","Red House"]];
   const houseStructure=core.detectResultStructure(houseRows);
@@ -45,6 +52,29 @@ test("present calculation requires zero absent subjects",()=>assert.strictEqual(
 test("subject averages exclude zero",()=>assert.strictEqual(core.summarize(students,structure.subjects).subjectAverages[0].value,50));
 test("percentage ranges are numeric and include 100 in 90-100",()=>{assert.strictEqual(core.percentageBand(20),"20-30");assert.strictEqual(core.percentageBand(100),"90-100")});
 test("top ranking sorts descending",()=>assert.deepStrictEqual(core.rankStudents(students,"desc").map(s=>s.name),["Pass","Fail","Absent"]));
+test("overall topper ties are complete and alphabetical regardless of workbook row order",()=>{
+  const tied=[
+    {name:"Zara",className:"X B",totalMarks:180,sourceIndex:0},
+    {name:"Aanya",className:"X A",totalMarks:180,sourceIndex:1},
+    {name:"Lower",className:"X A",totalMarks:170,sourceIndex:2}
+  ];
+  const expected=["Aanya","Zara"];
+  for(const order of [tied,[...tied].reverse()]) {
+    assert.deepStrictEqual(core.rankStudents(order,"desc",1).map(student=>student.name),expected);
+  }
+});
+test("subject topper ties are complete and alphabetical regardless of workbook row order",()=>{
+  const subjectResults=[
+    {name:"Zara",className:"X B",marks:[95],sourceIndex:0},
+    {name:"Aanya",className:"X A",marks:[95],sourceIndex:1},
+    {name:"Lower",className:"X A",marks:[90],sourceIndex:2}
+  ];
+  const expected=["Aanya","Zara"];
+  for(const order of [subjectResults,[...subjectResults].reverse()]) {
+    const ranked=order.map(student=>({...student,totalMarks:student.marks[0]}));
+    assert.deepStrictEqual(core.rankStudents(ranked,"desc",1).map(student=>student.name),expected);
+  }
+});
 test("bottom ranking sorts ascending",()=>assert.deepStrictEqual(core.rankStudents(students,"asc").map(s=>s.name),["Absent","Fail","Pass"]));
 test("class filter works",()=>assert.strictEqual(core.filterStudents(students,{className:"X A"}).length,2));
 test("gender filter works",()=>assert.strictEqual(core.filterStudents(students,{gender:"BOY"}).length,2));

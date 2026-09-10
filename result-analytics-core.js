@@ -46,6 +46,13 @@
     return error;
   }
 
+  function duplicateSubjectError(subjectName) {
+    const error = new Error(`Duplicate subject header found: ${subjectName}.`);
+    error.code = "WORKBOOK_STRUCTURE_VALIDATION";
+    error.subjectName = subjectName;
+    return error;
+  }
+
   function createLatestLoadGuard() {
     let latestLoadId = 0;
     return Object.freeze({
@@ -63,6 +70,11 @@
     if (columns.admission < 0) throw new Error("Missing Admission Number. Add an Admission Number column to the workbook.");
     if (columns.className < 0) throw new Error("Missing Class & Section. Add a Class & Section column.");
     const subjects = headers.map((name, index) => ({ name, index })).filter(({ name, index }) => name && index > columns.name && index < columns.className);
+    const subjectNames = new Set();
+    subjects.forEach(subject => {
+      if (subjectNames.has(subject.name)) throw duplicateSubjectError(subject.name);
+      subjectNames.add(subject.name);
+    });
     const studentRows = rows.map((row, index) => ({ row, excelRow: index + 1 })).slice(headerIndex + 1).filter(({row}) =>
       Array.isArray(row) && String(row[columns.admission] ?? "").trim() !== ""
     );
@@ -148,7 +160,7 @@
   function rankStudents(students, direction = "desc", limit = 10) {
     const ordered = [...students].sort((a, b) => {
       const marksOrder = direction === "asc" ? a.totalMarks - b.totalMarks : b.totalMarks - a.totalMarks;
-      return marksOrder || String(a.name).localeCompare(String(b.name)) || a.sourceIndex - b.sourceIndex;
+      return marksOrder || String(a.name).localeCompare(String(b.name)) || String(a.className).localeCompare(String(b.className));
     });
     let prior = null, rank = 0;
     return ordered.map((student, index) => {
