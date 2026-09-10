@@ -1,1 +1,1 @@
-{"name":"acadpulse-platform","version":"1.1.0","private":true,"scripts":{"test":"node test.js && node result-analytics.test.js && node page2-analytics.test.js && node xlsx-reader.test.js","serve":"python -m http.server 8000"}}
+{"name":"acadpulse-platform","version":"1.1.0","private":true,"scripts":{"test":"node test.js && node result-analytics.test.js && node page2-analytics.test.js && node page2-review-fixes.test.js && node xlsx-reader.test.js","serve":"python -m http.server 8000"}}
