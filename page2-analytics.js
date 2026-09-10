@@ -43,7 +43,8 @@
       const presentMarks = marks.filter(mark => mark > 0);
       const passCount = presentMarks.filter(mark => mark >= passMark).length;
       const failCount = presentMarks.length - passCount;
-      const highestMark = presentMarks.length ? Math.max(...presentMarks) : null;
+      const highestMark = presentMarks.length ? presentMarks.reduce((highest, mark) => mark > highest ? mark : highest, presentMarks[0]) : null;
+      const lowestMark = presentMarks.length ? presentMarks.reduce((lowest, mark) => mark < lowest ? mark : lowest, presentMarks[0]) : null;
       const toppers = highestMark == null ? [] : students
         .filter(student => student.marks[subjectIndex] === highestMark)
         .map(student => ({ name: student.name, className: student.className }))
@@ -58,7 +59,7 @@
         passPercentage: presentMarks.length ? round2(passCount / presentMarks.length * 100) : null,
         averageMark: mean(presentMarks),
         highestMark,
-        lowestMark: presentMarks.length ? Math.min(...presentMarks) : null,
+        lowestMark,
         distribution: distributionFor(presentMarks, maximumMarks),
         toppers,
         supportCount: failCount
@@ -68,7 +69,7 @@
 
   function overallToppers(students, subjects) {
     if (!students.length) return [];
-    const highestTotal = Math.max(...students.map(student => student.totalMarks));
+    const highestTotal = students.reduce((highest, student) => student.totalMarks > highest ? student.totalMarks : highest, students[0].totalMarks);
     return students.filter(student => student.totalMarks === highestTotal).map(student => ({
       name: student.name,
       className: student.className,
