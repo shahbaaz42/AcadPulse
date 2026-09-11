@@ -32,7 +32,7 @@
     if (typeof document === "undefined" || document.querySelector('script[data-acadpulse-page2]')) return;
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "page2-ui.css?v=20260911-1";
+    stylesheet.href = "page2-ui.css?v=20260911-2";
     document.head.appendChild(stylesheet);
 
     const analyticsScript = document.createElement("script");
@@ -40,7 +40,7 @@
     analyticsScript.dataset.acadpulsePage2 = "analytics";
     analyticsScript.onload = () => {
       const uiScript = document.createElement("script");
-      uiScript.src = "page2-ui.js?v=20260911-1";
+      uiScript.src = "page2-ui.js?v=20260911-2";
       uiScript.dataset.acadpulsePage2 = "ui";
       document.body.appendChild(uiScript);
     };
