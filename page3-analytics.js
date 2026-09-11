@@ -108,6 +108,7 @@
       if (filters.result && student.result !== filters.result) return false;
       if (query && !String(student.name).toLowerCase().includes(query) && !String(student.admission).toLowerCase().includes(query)) return false;
       if (range) {
+        if (subjectIndex >= 0 && student.marks[subjectIndex] === 0) return false;
         const value = subjectIndex >= 0 ? round2(student.marks[subjectIndex] / maximum * 100) : student.percentage;
         const inRange = value >= range.low && (range.high >= 100 ? value <= range.high : value < range.high);
         if (!inRange) return false;
