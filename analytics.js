@@ -28,7 +28,31 @@
     }
   }
 
+  function loadPage2Resources() {
+    if (typeof document === "undefined" || document.querySelector('script[data-acadpulse-page2]')) return;
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = "page2-ui.css?v=20260910-1";
+    document.head.appendChild(stylesheet);
+
+    const analyticsScript = document.createElement("script");
+    analyticsScript.src = "page2-analytics.js?v=20260910-1";
+    analyticsScript.dataset.acadpulsePage2 = "analytics";
+    analyticsScript.onload = () => {
+      const uiScript = document.createElement("script");
+      uiScript.src = "page2-ui.js?v=20260910-1";
+      uiScript.dataset.acadpulsePage2 = "ui";
+      document.body.appendChild(uiScript);
+    };
+    document.body.appendChild(analyticsScript);
+  }
+
   const analytics = Object.freeze({ MEASUREMENT_ID, EVENT_NAMES, trackEvent });
   if (typeof module !== "undefined") module.exports = analytics;
   root.AcadPulseAnalytics = analytics;
+
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadPage2Resources, { once: true });
+    else loadPage2Resources();
+  }
 })(typeof globalThis !== "undefined" ? globalThis : this);
