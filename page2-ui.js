@@ -106,7 +106,7 @@
     const analysis = page2.analyze(state.students, state.subjects, state.configuration, filters);
     $("page2FilterCount").textContent = `Showing ${analysis.population.length} of ${state.students.length} students`;
     $("page2Empty").hidden = analysis.population.length > 0;
-    $("page2HighestChart").innerHTML = barList(analysis.subjectToppers.map(item => ({ label: item.subject, value: item.highestMark || 0 })), format, Number(state.configuration.maximumMarks));
+    $("page2HighestChart").innerHTML = barList(analysis.subjectToppers.map(item => ({ label: item.subject, value: item.highestMark })), format, Number(state.configuration.maximumMarks));
     $("page2SupportChart").innerHTML = barList(analysis.supportBySubject.map(item => ({ label: item.subject, value: item.count })), format);
     $("page2SubjectToppers").innerHTML = `<thead><tr><th>Subject</th><th>Highest Mark</th><th>Topper(s) &amp; Class</th></tr></thead><tbody>${analysis.subjectToppers.map(item => `<tr><td class="name">${escapeHtml(item.subject)}</td><td>${format(item.highestMark)}</td><td class="topper-list">${topperLines(item.toppers)}</td></tr>`).join("")}</tbody>`;
     $("page2SubjectSummary").innerHTML = subjectSummaryTable(analysis.subjectSummary);
