@@ -29,19 +29,21 @@
   }
 
   function addStylesheet(href, marker) {
-    if (document.querySelector(`link[data-acadpulse-${marker}]`)) return;
+    const attribute = `data-acadpulse-${marker}`;
+    if (document.querySelector(`link[${attribute}]`)) return;
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
     stylesheet.href = href;
-    stylesheet.dataset[`acadpulse${marker[0].toUpperCase()}${marker.slice(1)}`] = "true";
+    stylesheet.setAttribute(attribute, "true");
     document.head.appendChild(stylesheet);
   }
 
   function loadScript(src, marker, onload) {
-    if (document.querySelector(`script[data-acadpulse-${marker}]`)) return;
+    const attribute = `data-acadpulse-${marker}`;
+    if (document.querySelector(`script[${attribute}]`)) return;
     const script = document.createElement("script");
     script.src = src;
-    script.dataset[`acadpulse${marker[0].toUpperCase()}${marker.slice(1)}`] = "true";
+    script.setAttribute(attribute, "true");
     if (onload) script.onload = onload;
     document.body.appendChild(script);
   }
