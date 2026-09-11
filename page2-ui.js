@@ -26,9 +26,9 @@
           <article class="dashboard-panel"><h3>Overall Topper Summary <span>responds to shared filters</span></h3><div id="page2OverallTopper"></div></article>
           <article class="dashboard-panel page2-wide"><h3>Class Overall Performance Comparison</h3><div class="page2-table-scroll"><table id="page2ClassPerformance"></table></div></article>
           <article class="dashboard-panel page2-wide"><h3>Class × Subject Analysis</h3><p class="page2-note">All matrices recalculate from the currently filtered population. Average and Pass % exclude absent marks.</p><div class="matrix-grid">
-            <div><h3>Average Mark Matrix</h3><div class="page2-table-scroll"><table id="page2AverageMatrix"></table></div></div>
-            <div><h3>Pass % Matrix</h3><div class="page2-table-scroll"><table id="page2PassMatrix"></table></div></div>
-            <div><h3>Failure Count Matrix</h3><div class="page2-table-scroll"><table id="page2FailureMatrix"></table></div></div>
+            <div><h3>Average Mark Matrix</h3><div class="heat-legend"><span>Lowest</span><span class="legend-ramp"><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i></span><span>Highest</span></div><div class="page2-table-scroll"><table id="page2AverageMatrix"></table></div></div>
+            <div><h3>Pass % Matrix</h3><div class="heat-legend"><span>Lowest</span><span class="legend-ramp"><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i></span><span>Highest</span></div><div class="page2-table-scroll"><table id="page2PassMatrix"></table></div></div>
+            <div><h3>Failure Count Matrix</h3><div class="heat-legend failure"><span>Lowest</span><span class="legend-ramp"><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i></span><span>Highest</span></div><div class="page2-table-scroll"><table id="page2FailureMatrix"></table></div></div>
           </div></article>
         </div>
       </section>`);
@@ -50,7 +50,7 @@
 
   function topperLines(toppers) {
     if (!toppers.length) return "—";
-    return toppers.map(topper => `<div><strong>${escapeHtml(topper.name)}</strong><small>${escapeHtml(topper.className)}</small></div>`).join("");
+    return `<div class="topper-inline">${toppers.map(topper => `<span><strong>${escapeHtml(topper.name)}</strong><small>— ${escapeHtml(topper.className)}</small></span>`).join("")}</div>`;
   }
 
   function distributionHistogram(distribution) {
