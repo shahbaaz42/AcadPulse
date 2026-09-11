@@ -28,23 +28,36 @@
     }
   }
 
-  function loadPage2Resources() {
-    if (typeof document === "undefined" || document.querySelector('script[data-acadpulse-page2]')) return;
+  function addStylesheet(href, marker) {
+    if (document.querySelector(`link[data-acadpulse-${marker}]`)) return;
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "page2-ui.css?v=20260911-3";
+    stylesheet.href = href;
+    stylesheet.dataset[`acadpulse${marker[0].toUpperCase()}${marker.slice(1)}`] = "true";
     document.head.appendChild(stylesheet);
+  }
 
-    const analyticsScript = document.createElement("script");
-    analyticsScript.src = "page2-analytics.js?v=20260911-1";
-    analyticsScript.dataset.acadpulsePage2 = "analytics";
-    analyticsScript.onload = () => {
-      const uiScript = document.createElement("script");
-      uiScript.src = "page2-ui.js?v=20260911-2";
-      uiScript.dataset.acadpulsePage2 = "ui";
-      document.body.appendChild(uiScript);
-    };
-    document.body.appendChild(analyticsScript);
+  function loadScript(src, marker, onload) {
+    if (document.querySelector(`script[data-acadpulse-${marker}]`)) return;
+    const script = document.createElement("script");
+    script.src = src;
+    script.dataset[`acadpulse${marker[0].toUpperCase()}${marker.slice(1)}`] = "true";
+    if (onload) script.onload = onload;
+    document.body.appendChild(script);
+  }
+
+  function loadResultAnalyticsResources() {
+    if (typeof document === "undefined") return;
+
+    addStylesheet("page2-ui.css?v=20260911-3", "page2-style");
+    loadScript("page2-analytics.js?v=20260911-1", "page2-analytics", () => {
+      loadScript("page2-ui.js?v=20260911-2", "page2-ui");
+    });
+
+    addStylesheet("page3-ui.css?v=20260911-1", "page3-style");
+    loadScript("page3-analytics.js?v=20260911-1", "page3-analytics", () => {
+      loadScript("page3-ui.js?v=20260911-1", "page3-ui");
+    });
   }
 
   const analytics = Object.freeze({ MEASUREMENT_ID, EVENT_NAMES, trackEvent });
@@ -52,7 +65,7 @@
   root.AcadPulseAnalytics = analytics;
 
   if (typeof document !== "undefined") {
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadPage2Resources, { once: true });
-    else loadPage2Resources();
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadResultAnalyticsResources, { once: true });
+    else loadResultAnalyticsResources();
   }
 })(typeof globalThis !== "undefined" ? globalThis : this);
