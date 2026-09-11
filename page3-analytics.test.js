@@ -32,6 +32,7 @@ assert.strictEqual(absentProfile.subjectRows[2].difference, null, 'absent marks 
 
 const filtered = page3.detailedRows(students, subjects, configuration, { subject:'Maths', markRange:'0-30' });
 assert.deepStrictEqual(filtered.map(row => row.admission), ['2']);
+assert.deepStrictEqual(page3.detailedRows(students, subjects, configuration, { subject:'Arabic', markRange:'0-10' }).map(row => row.admission), [], 'zero marks are ABSENT and must not appear in a subject score range');
 assert.strictEqual(page3.detailedRows(students, subjects, configuration, { result:'PASS' }).length, 2);
 assert.strictEqual(page3.detailedRows(students, subjects, configuration, { query:'3' })[0].name, 'C');
 
