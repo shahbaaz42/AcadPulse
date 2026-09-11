@@ -8,6 +8,7 @@
     { id: "page3RangeFilter", label: "Mark Range" }
   ];
   const selectedById = new Map();
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
   function valuesFor(select) {
     return [...select.options]
@@ -37,6 +38,14 @@
     select.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  function bindOptionRow(row, input) {
+    row.addEventListener("click", event => {
+      if (event.target === input) return;
+      input.checked = !input.checked;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
   function renderControl(select, wrapper, selected) {
     const options = valuesFor(select);
     const validValues = new Set(options.map(option => option.value));
@@ -45,17 +54,22 @@
     summary.textContent = summaryText(selected, options);
     const menu = wrapper.querySelector(".page3-multi-menu");
     menu.innerHTML = `
-      <label class="page3-multi-all"><input type="checkbox" ${selected.size ? "" : "checked"}> <span>All</span></label>
-      ${options.map(option => `<label><input type="checkbox" value="${option.value.replace(/&/g,"&amp;").replace(/"/g,"&quot;")}" ${selected.has(option.value) ? "checked" : ""}> <span>${option.label.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</span></label>`).join("")}`;
+      <div class="page3-multi-option page3-multi-all" role="option"><input type="checkbox" ${selected.size ? "" : "checked"}><span>All</span></div>
+      ${options.map(option => `<div class="page3-multi-option" role="option"><input type="checkbox" value="${escapeHtml(option.value)}" ${selected.has(option.value) ? "checked" : ""}><span>${escapeHtml(option.label)}</span></div>`).join("")}`;
 
-    const allBox = menu.querySelector(".page3-multi-all input");
+    const allRow = menu.querySelector(".page3-multi-all");
+    const allBox = allRow.querySelector("input");
+    bindOptionRow(allRow, allBox);
     allBox.addEventListener("change", () => {
       if (!allBox.checked) return;
       selected.clear();
       renderControl(select, wrapper, selected);
       syncHiddenSelect(select, selected);
     });
-    menu.querySelectorAll('label:not(.page3-multi-all) input').forEach(input => {
+
+    menu.querySelectorAll(".page3-multi-option:not(.page3-multi-all)").forEach(row => {
+      const input = row.querySelector("input");
+      bindOptionRow(row, input);
       input.addEventListener("change", () => {
         if (input.checked) selected.add(input.value); else selected.delete(input.value);
         summary.textContent = summaryText(selected, options);
@@ -76,7 +90,7 @@
     const wrapper = document.createElement("details");
     wrapper.className = "page3-multi";
     wrapper.dataset.for = id;
-    wrapper.innerHTML = `<summary aria-label="${label} multi-select"><span>All</span><b>⌄</b></summary><div class="page3-multi-menu"></div>`;
+    wrapper.innerHTML = `<summary aria-label="${escapeHtml(label)} multi-select"><span>All</span><b>⌄</b></summary><div class="page3-multi-menu"></div>`;
     select.insertAdjacentElement("afterend", wrapper);
     renderControl(select, wrapper, selected);
 
