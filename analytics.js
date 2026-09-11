@@ -60,8 +60,11 @@
 
   function loadPage3Resources() {
     addStylesheet("page3-ui.css?v=20260911-1", "page3-style");
-    loadScript("page3-analytics.js?v=20260911-1", "page3-analytics", () => {
-      loadScript("page3-ui.js?v=20260911-1", "page3-ui");
+    addStylesheet("page3-filter-ui.css?v=20260911-1", "page3-filter-style");
+    loadScript("page3-analytics.js?v=20260911-2", "page3-analytics", () => {
+      loadScript("page3-ui.js?v=20260911-1", "page3-ui", () => {
+        loadScript("page3-filter-ui.js?v=20260911-1", "page3-filter-ui");
+      });
     });
   }
 

@@ -99,19 +99,35 @@
     return { low: Number(match[1]), high: Number(match[2]) };
   }
 
+  function selections(value) {
+    if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean);
+    return String(value ?? "").split("|").map(item => item.trim()).filter(Boolean);
+  }
+
+  function inAnyRange(value, ranges) {
+    return ranges.some(range => value >= range.low && (range.high >= 100 ? value <= range.high : value < range.high));
+  }
+
   function detailedRows(population, subjects, configuration, filters = {}) {
     const maximum = Number(configuration.maximumMarks);
-    const subjectIndex = filters.subject ? subjects.findIndex(subject => subject.name === filters.subject) : -1;
-    const range = parseRange(filters.markRange);
+    const resultSelections = selections(filters.result);
+    const subjectSelections = selections(filters.subject);
+    const ranges = selections(filters.markRange).map(parseRange).filter(Boolean);
+    const subjectIndexes = subjectSelections.map(subjectName => subjects.findIndex(subject => subject.name === subjectName)).filter(index => index >= 0);
     const query = String(filters.query || "").trim().toLowerCase();
+
     return population.filter(student => {
-      if (filters.result && student.result !== filters.result) return false;
+      if (resultSelections.length && !resultSelections.includes(student.result)) return false;
       if (query && !String(student.name).toLowerCase().includes(query) && !String(student.admission).toLowerCase().includes(query)) return false;
-      if (range) {
-        if (subjectIndex >= 0 && student.marks[subjectIndex] === 0) return false;
-        const value = subjectIndex >= 0 ? round2(student.marks[subjectIndex] / maximum * 100) : student.percentage;
-        const inRange = value >= range.low && (range.high >= 100 ? value <= range.high : value < range.high);
-        if (!inRange) return false;
+      if (ranges.length) {
+        if (subjectIndexes.length) {
+          const matchesSelectedSubject = subjectIndexes.some(index => {
+            const mark = student.marks[index];
+            if (mark === 0) return false;
+            return inAnyRange(round2(mark / maximum * 100), ranges);
+          });
+          if (!matchesSelectedSubject) return false;
+        } else if (!inAnyRange(student.percentage, ranges)) return false;
       }
       return true;
     }).map(student => ({
@@ -142,7 +158,7 @@
     };
   }
 
-  const api = Object.freeze({ round2, filterPopulation, rankPopulation, subjectStatus, presentAverage, profileFor, detailedRows, analyze });
+  const api = Object.freeze({ round2, filterPopulation, rankPopulation, subjectStatus, presentAverage, profileFor, parseRange, selections, detailedRows, analyze });
   if (typeof module !== "undefined") module.exports = api;
   root.AcadPulsePage3Analytics = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
