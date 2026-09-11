@@ -100,11 +100,9 @@
   }
 
   function sharedFilters() {
-    const classValue = $("analyticsClassFilter")?.value || "All";
-    const genderValue = $("analyticsGenderFilter")?.value || "All";
     return {
-      className: classValue === "All" ? "" : classValue,
-      gender: genderValue === "All" ? "" : genderValue
+      className: $("analyticsClassFilter")?.value || "",
+      gender: $("analyticsGenderFilter")?.value || ""
     };
   }
 
