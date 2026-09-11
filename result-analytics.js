@@ -55,7 +55,7 @@
     }
   }
 
-  function optionList(values) { return `<option value="All">All</option>${[...new Set(values.filter(Boolean))].sort((a,b) => a.localeCompare(b)).map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`; }
+  function optionList(values) { return `<option value="">All</option>${[...new Set(values.filter(Boolean))].sort((a,b) => a.localeCompare(b)).map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`; }
   function invalidateGeneratedDashboard() {
     state.students = [];
     $("analyticsDashboard").hidden = true;
@@ -109,5 +109,5 @@
   ["dragenter","dragover"].forEach(name=>$("analyticsDropzone").addEventListener(name,event=>{event.preventDefault();$("analyticsDropzone").classList.add("drag");}));
   ["dragleave","drop"].forEach(name=>$("analyticsDropzone").addEventListener(name,event=>{event.preventDefault();$("analyticsDropzone").classList.remove("drag");if(name==="drop"){$("analyticsFileInput").value="";loadWorkbook(event.dataTransfer.files[0]);}}));
   $("analyticsGenerate").addEventListener("click",generate); $("analyticsClassFilter").addEventListener("change",render); $("analyticsGenderFilter").addEventListener("change",render);
-  $("analyticsResetFilters").addEventListener("click",()=>{$("analyticsClassFilter").value="All";$("analyticsGenderFilter").value="All";render();});
+  $("analyticsResetFilters").addEventListener("click",()=>{$("analyticsClassFilter").value="";$("analyticsGenderFilter").value="";render();});
 })();
