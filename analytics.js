@@ -40,25 +40,36 @@
 
   function loadScript(src, marker, onload) {
     const attribute = `data-acadpulse-${marker}`;
-    if (document.querySelector(`script[${attribute}]`)) return;
+    const existing = document.querySelector(`script[${attribute}]`);
+    if (existing) {
+      if (onload) {
+        if (existing.dataset.loaded === "true") onload();
+        else existing.addEventListener("load", onload, { once: true });
+      }
+      return;
+    }
     const script = document.createElement("script");
     script.src = src;
     script.setAttribute(attribute, "true");
-    if (onload) script.onload = onload;
+    script.onload = () => {
+      script.dataset.loaded = "true";
+      if (onload) onload();
+    };
     document.body.appendChild(script);
+  }
+
+  function loadPage3Resources() {
+    addStylesheet("page3-ui.css?v=20260911-1", "page3-style");
+    loadScript("page3-analytics.js?v=20260911-1", "page3-analytics", () => {
+      loadScript("page3-ui.js?v=20260911-1", "page3-ui");
+    });
   }
 
   function loadResultAnalyticsResources() {
     if (typeof document === "undefined") return;
-
     addStylesheet("page2-ui.css?v=20260911-3", "page2-style");
     loadScript("page2-analytics.js?v=20260911-1", "page2-analytics", () => {
-      loadScript("page2-ui.js?v=20260911-2", "page2-ui");
-    });
-
-    addStylesheet("page3-ui.css?v=20260911-1", "page3-style");
-    loadScript("page3-analytics.js?v=20260911-1", "page3-analytics", () => {
-      loadScript("page3-ui.js?v=20260911-1", "page3-ui");
+      loadScript("page2-ui.js?v=20260911-2", "page2-ui", loadPage3Resources);
     });
   }
 
