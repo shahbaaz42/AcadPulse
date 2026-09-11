@@ -32,7 +32,7 @@
     if (typeof document === "undefined" || document.querySelector('script[data-acadpulse-page2]')) return;
     const stylesheet = document.createElement("link");
     stylesheet.rel = "stylesheet";
-    stylesheet.href = "page2-ui.css?v=20260911-2";
+    stylesheet.href = "page2-ui.css?v=20260911-3";
     document.head.appendChild(stylesheet);
 
     const analyticsScript = document.createElement("script");
