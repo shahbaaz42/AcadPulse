@@ -36,4 +36,25 @@ assert.deepStrictEqual(page3.detailedRows(students, subjects, configuration, { s
 assert.strictEqual(page3.detailedRows(students, subjects, configuration, { result:'PASS' }).length, 2);
 assert.strictEqual(page3.detailedRows(students, subjects, configuration, { query:'3' })[0].name, 'C');
 
+assert.deepStrictEqual(
+  page3.detailedRows(students, subjects, configuration, { result:'PASS|FAIL' }).map(row => row.admission),
+  ['2','3','4'],
+  'multiple result selections use OR logic'
+);
+assert.deepStrictEqual(
+  page3.detailedRows(students, subjects, configuration, { subject:'Science|Maths', markRange:'0-30' }).map(row => row.admission),
+  ['2'],
+  'a student matches when any selected subject falls in any selected range'
+);
+assert.deepStrictEqual(
+  page3.detailedRows(students, subjects, configuration, { subject:['Science','Maths'], markRange:['0-30','80-90'] }).map(row => row.admission),
+  ['1','2'],
+  'array selections and multiple mark ranges are supported'
+);
+assert.deepStrictEqual(
+  page3.detailedRows(students, subjects, configuration, { markRange:'40-50|70-80' }).map(row => row.admission),
+  ['1','3'],
+  'multiple mark ranges apply to overall percentage when no subject is selected'
+);
+
 console.log('page3-analytics tests passed');
