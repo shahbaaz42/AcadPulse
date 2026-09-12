@@ -62,7 +62,6 @@ def _ensure_institution(record, institution_id: UUID, label: str) -> None:
         raise HTTPException(status_code=400, detail=f"{label} does not belong to this institution")
 
 
-# Institutions
 @router.post("/institutions", response_model=InstitutionRead, status_code=status.HTTP_201_CREATED)
 def create_institution(payload: InstitutionCreate, db: Session = Depends(get_db)):
     item = Institution(**payload.model_dump())
@@ -99,7 +98,6 @@ def delete_institution(institution_id: UUID, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# Academic years
 @router.post("/academic-years", response_model=AcademicYearRead, status_code=status.HTTP_201_CREATED)
 def create_academic_year(payload: AcademicYearCreate, db: Session = Depends(get_db)):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
@@ -145,7 +143,6 @@ def delete_academic_year(item_id: UUID, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# Academic divisions
 @router.post("/academic-divisions", response_model=AcademicDivisionRead, status_code=status.HTTP_201_CREATED)
 def create_academic_division(payload: AcademicDivisionCreate, db: Session = Depends(get_db)):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
@@ -186,7 +183,6 @@ def delete_academic_division(item_id: UUID, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# Grade levels
 @router.post("/grade-levels", response_model=GradeLevelRead, status_code=status.HTTP_201_CREATED)
 def create_grade_level(payload: GradeLevelCreate, db: Session = Depends(get_db)):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
@@ -227,12 +223,7 @@ def delete_grade_level(item_id: UUID, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# Division-to-grade mapping
-@router.post(
-    "/academic-division-grade-levels",
-    response_model=AcademicDivisionGradeLevelRead,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/academic-division-grade-levels", response_model=AcademicDivisionGradeLevelRead, status_code=status.HTTP_201_CREATED)
 def create_division_grade_mapping(payload: AcademicDivisionGradeLevelCreate, db: Session = Depends(get_db)):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
     year = _get_or_404(db, AcademicYear, payload.academic_year_id, "Academic year")
@@ -249,11 +240,7 @@ def create_division_grade_mapping(payload: AcademicDivisionGradeLevelCreate, db:
 
 
 @router.get("/academic-division-grade-levels", response_model=list[AcademicDivisionGradeLevelRead])
-def list_division_grade_mappings(
-    institution_id: UUID | None = None,
-    academic_year_id: UUID | None = None,
-    db: Session = Depends(get_db),
-):
+def list_division_grade_mappings(institution_id: UUID | None = None, academic_year_id: UUID | None = None, db: Session = Depends(get_db)):
     stmt = select(AcademicDivisionGradeLevel)
     if institution_id:
         stmt = stmt.where(AcademicDivisionGradeLevel.institution_id == institution_id)
@@ -270,7 +257,6 @@ def delete_division_grade_mapping(item_id: UUID, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# Class groups
 @router.post("/class-groups", response_model=ClassGroupRead, status_code=status.HTTP_201_CREATED)
 def create_class_group(payload: ClassGroupCreate, db: Session = Depends(get_db)):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
@@ -282,6 +268,7 @@ def create_class_group(payload: ClassGroupCreate, db: Session = Depends(get_db))
         select(AcademicDivisionGradeLevel).where(
             AcademicDivisionGradeLevel.academic_year_id == payload.academic_year_id,
             AcademicDivisionGradeLevel.grade_level_id == payload.grade_level_id,
+            AcademicDivisionGradeLevel.institution_id == payload.institution_id,
         )
     )
     if mapping is None:
@@ -294,12 +281,7 @@ def create_class_group(payload: ClassGroupCreate, db: Session = Depends(get_db))
 
 
 @router.get("/class-groups", response_model=list[ClassGroupRead])
-def list_class_groups(
-    institution_id: UUID | None = None,
-    academic_year_id: UUID | None = None,
-    grade_level_id: UUID | None = None,
-    db: Session = Depends(get_db),
-):
+def list_class_groups(institution_id: UUID | None = None, academic_year_id: UUID | None = None, grade_level_id: UUID | None = None, db: Session = Depends(get_db)):
     stmt = select(ClassGroup)
     if institution_id:
         stmt = stmt.where(ClassGroup.institution_id == institution_id)
