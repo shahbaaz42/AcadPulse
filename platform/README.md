@@ -19,7 +19,7 @@ This directory contains the new database-backed AcadPulse platform. The existing
 - Backend: FastAPI
 - ORM: SQLAlchemy
 - Database: PostgreSQL
-- Migrations: Alembic (to be added once the first schema is finalized)
+- Migrations: Alembic
 
 ## UX rule
 
@@ -27,6 +27,38 @@ Daily users should see workflows rather than database structure. Context such as
 
 ## Current milestone
 
-Milestone 1 begins with:
+Milestone 1 flow:
 
 `Login -> Institution -> Academic Year -> Academic Division -> Grade -> Class Group`
+
+### Completed foundation work
+
+- PostgreSQL connection foundation
+- SQLAlchemy foundation models
+- Alembic configuration and initial migration
+- Pydantic request/response schemas
+- CRUD APIs for Institution, Academic Year, Academic Division, Grade Level and Class Group
+- Division-to-grade mapping API
+- tenant-consistency validation for related Milestone 1 records
+- conflict handling for duplicate/dependent records
+
+### API prefix
+
+`/api/v1`
+
+Main resources:
+
+- `/api/v1/institutions`
+- `/api/v1/academic-years`
+- `/api/v1/academic-divisions`
+- `/api/v1/grade-levels`
+- `/api/v1/academic-division-grade-levels`
+- `/api/v1/class-groups`
+
+FastAPI automatically exposes interactive API documentation at `/docs` when the backend is running.
+
+## Next
+
+1. Connect the guided frontend setup to these APIs.
+2. Add authentication and institution context.
+3. Add browser-visible Academic Management preview without changing the existing Scoreboard Generator or Result Analytics.
