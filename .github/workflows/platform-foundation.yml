@@ -40,6 +40,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg://acadpulse:acadpulse@localhost:5432/acadpulse
       ENVIRONMENT: test
       CORS_ORIGINS: http://localhost:3000
+      PYTHONPATH: .
 
     steps:
       - name: Checkout repository
