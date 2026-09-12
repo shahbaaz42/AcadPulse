@@ -1,0 +1,86 @@
+name: AcadPulse Platform Foundation
+
+on:
+  pull_request:
+    paths:
+      - "platform/backend/**"
+      - "platform/frontend/**"
+      - ".github/workflows/platform-foundation.yml"
+  push:
+    branches:
+      - feature/platform-foundation-v1
+    paths:
+      - "platform/backend/**"
+      - "platform/frontend/**"
+      - ".github/workflows/platform-foundation.yml"
+
+jobs:
+  backend-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acadpulse
+          POSTGRES_PASSWORD: acadpulse
+          POSTGRES_DB: acadpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U acadpulse -d acadpulse"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: platform/backend
+
+    env:
+      DATABASE_URL: postgresql+psycopg://acadpulse:acadpulse@localhost:5432/acadpulse
+      ENVIRONMENT: test
+      CORS_ORIGINS: http://localhost:3000
+      PYTHONPATH: .
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Apply Alembic migrations
+        run: alembic upgrade head
+
+      - name: Run backend integration tests
+        run: pytest -q
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: platform/frontend/package.json
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+        run: npm run build
