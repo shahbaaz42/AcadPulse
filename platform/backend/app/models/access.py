@@ -18,6 +18,7 @@ class UserAccount(AccessTimestampMixin, Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="active", nullable=False)
     is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
@@ -43,7 +44,7 @@ class UserRoleAssignment(AccessTimestampMixin, Base):
         CheckConstraint(
             "(scope_type = 'platform' AND organization_id IS NULL AND institution_id IS NULL) OR "
             "(scope_type = 'organization' AND organization_id IS NOT NULL AND institution_id IS NULL) OR "
-            "(scope_type = 'institution' AND institution_id IS NOT NULL)",
+            "(scope_type = 'institution' AND organization_id IS NULL AND institution_id IS NOT NULL)",
             name="ck_user_role_scope_target",
         ),
     )
