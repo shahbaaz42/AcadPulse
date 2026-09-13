@@ -21,7 +21,7 @@ export default function AdminUsersPage() {
   const [roleCode, setRoleCode] = useState<RoleCode>("PRINCIPAL");
   const [displayName, setDisplayName] = useState("School Principal");
   const [email, setEmail] = useState("principal@acadpulse.test");
-  const [password, setPassword] = useState("Principal123!");
+  const [password, setPassword] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [institutionId, setInstitutionId] = useState("");
   const [message, setMessage] = useState("");
@@ -64,12 +64,12 @@ export default function AdminUsersPage() {
           setRoleCode("MANAGEMENT_ADMIN");
           setDisplayName("Group Management");
           setEmail("management@acadpulse.test");
-          setPassword("Manage123456!");
+          setPassword("");
         } else if (management) {
           setRoleCode("PRINCIPAL");
           setDisplayName("School Principal");
           setEmail("principal@acadpulse.test");
-          setPassword("Principal123!");
+          setPassword("");
         }
       })
       .catch((err: Error) => setError(err.message))
@@ -82,18 +82,16 @@ export default function AdminUsersPage() {
     setRoleCode(next);
     setMessage("");
     setError("");
+    setPassword("");
     if (next === "MANAGEMENT_ADMIN") {
       setDisplayName("Group Management");
       setEmail("management@acadpulse.test");
-      setPassword("Manage123456!");
     } else if (next === "PRINCIPAL") {
       setDisplayName("School Principal");
       setEmail("principal@acadpulse.test");
-      setPassword("Principal123!");
     } else {
       setDisplayName("School Admin");
       setEmail("schooladmin@acadpulse.test");
-      setPassword("SchoolAdmin123!");
     }
   }
 
@@ -115,6 +113,7 @@ export default function AdminUsersPage() {
         }),
       });
       setMessage(`${created.role_name} ready: ${created.email}`);
+      setPassword("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create user");
     } finally {
@@ -148,7 +147,7 @@ export default function AdminUsersPage() {
       <p>
         {currentUser?.is_platform_admin
           ? "Create the first controlled organization or institution administrator accounts. Tenant visibility is enforced by the backend."
-          : "Create Principal accounts only for institutions within your organization. You cannot assign users outside your organization."}
+          : "Create/Manage Principal accounts for institutions of your organization."}
       </p>
 
       <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 28 }}>
@@ -185,7 +184,7 @@ export default function AdminUsersPage() {
 
         <label>
           Test password
-          <input type="password" minLength={12} value={password} onChange={(event) => setPassword(event.target.value)} required style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} />
+          <input type="password" minLength={12} value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="new-password" style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} />
           <small>Minimum 12 characters. Replace test credentials before real production use.</small>
         </label>
 
