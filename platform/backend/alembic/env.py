@@ -8,7 +8,10 @@ from app.models import *  # noqa: F401,F403
 from app.settings import settings
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Alembic's ConfigParser treats % as interpolation syntax. Escape percent signs
+# only when storing the URL in the config object; SQLAlchemy receives the
+# original URL semantics after ConfigParser unescapes %% back to %.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
