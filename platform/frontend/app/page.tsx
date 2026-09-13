@@ -6,15 +6,20 @@ import {
   AcademicDivision,
   AcademicYear,
   apiRequest,
+  AuthTokenResponse,
   ClassGroup,
+  clearAccessToken,
+  CurrentUser,
+  getAccessToken,
   GradeLevel,
   Institution,
+  setAccessToken,
 } from "../lib/api";
 
 type Notice = { type: "success" | "error"; text: string } | null;
 
 const setupSteps = [
-  ["1", "Institution", "Create the school profile"],
+  ["1", "Institution", "Work within your assigned school scope"],
   ["2", "Academic Year", "Set the working academic year"],
   ["3", "Divisions", "Add configurable academic divisions"],
   ["4", "Grades", "Create grade levels and map them to divisions"],
@@ -22,6 +27,10 @@ const setupSteps = [
 ];
 
 export default function HomePage() {
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [divisions, setDivisions] = useState<AcademicDivision[]>([]);
@@ -37,10 +46,49 @@ export default function HomePage() {
     [institutions, selectedInstitutionId]
   );
 
+  const roleNames = useMemo(() => {
+    if (!currentUser) return [];
+    return Array.from(new Set(currentUser.assignments.map((assignment) => assignment.role_name)));
+  }, [currentUser]);
+
+  const scopeSummary = useMemo(() => {
+    if (!currentUser) return "";
+    if (currentUser.is_platform_admin) return "Platform-wide access";
+    if (currentUser.assignments.some((assignment) => assignment.scope_type === "organization")) {
+      return "Organization-scoped access";
+    }
+    return "Institution-scoped access";
+  }, [currentUser]);
+
+  function resetAcademicState() {
+    setInstitutions([]);
+    setYears([]);
+    setDivisions([]);
+    setGrades([]);
+    setClasses([]);
+    setSelectedInstitutionId("");
+    setSelectedYearId("");
+    setNotice(null);
+  }
+
+  function handleAuthenticatedError(error: unknown) {
+    if (!getAccessToken()) {
+      setCurrentUser(null);
+      resetAcademicState();
+      return;
+    }
+    setNotice({
+      type: "error",
+      text: error instanceof Error ? error.message : "Something went wrong",
+    });
+  }
+
   async function loadInstitutions() {
     const data = await apiRequest<Institution[]>("/api/v1/institutions");
     setInstitutions(data);
-    if (!selectedInstitutionId && data[0]) setSelectedInstitutionId(data[0].id);
+    setSelectedInstitutionId((current) =>
+      data.some((item) => item.id === current) ? current : data[0]?.id ?? ""
+    );
   }
 
   async function loadInstitutionContext(institutionId: string) {
@@ -49,6 +97,7 @@ export default function HomePage() {
       setDivisions([]);
       setGrades([]);
       setClasses([]);
+      setSelectedYearId("");
       return;
     }
     const [yearData, divisionData, gradeData, classData] = await Promise.all([
@@ -67,14 +116,63 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    loadInstitutions().catch((error: Error) => setNotice({ type: "error", text: error.message }));
+    const token = getAccessToken();
+    if (!token) {
+      setAuthReady(true);
+      return;
+    }
+
+    apiRequest<CurrentUser>("/api/v1/auth/me")
+      .then((user) => setCurrentUser(user))
+      .catch(() => {
+        clearAccessToken();
+        setCurrentUser(null);
+      })
+      .finally(() => setAuthReady(true));
   }, []);
 
   useEffect(() => {
-    loadInstitutionContext(selectedInstitutionId).catch((error: Error) =>
-      setNotice({ type: "error", text: error.message })
-    );
-  }, [selectedInstitutionId]);
+    if (!currentUser) return;
+    loadInstitutions().catch(handleAuthenticatedError);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    loadInstitutionContext(selectedInstitutionId).catch(handleAuthenticatedError);
+  }, [selectedInstitutionId, currentUser]);
+
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const email = String(data.get("email") ?? "").trim();
+    const password = String(data.get("password") ?? "");
+    setSigningIn(true);
+    setAuthError("");
+
+    try {
+      const token = await apiRequest<AuthTokenResponse>("/api/v1/auth/login", {
+        method: "POST",
+        auth: false,
+        body: JSON.stringify({ email, password }),
+      });
+      setAccessToken(token.access_token);
+      const user = await apiRequest<CurrentUser>("/api/v1/auth/me");
+      setCurrentUser(user);
+      setNotice(null);
+    } catch (error) {
+      clearAccessToken();
+      setAuthError(error instanceof Error ? error.message : "Unable to sign in");
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  function signOut() {
+    clearAccessToken();
+    setCurrentUser(null);
+    setAuthError("");
+    resetAcademicState();
+  }
 
   async function runAction(action: () => Promise<void>, successText: string) {
     setBusy(true);
@@ -83,7 +181,7 @@ export default function HomePage() {
       await action();
       setNotice({ type: "success", text: successText });
     } catch (error) {
-      setNotice({ type: "error", text: error instanceof Error ? error.message : "Something went wrong" });
+      handleAuthenticatedError(error);
     } finally {
       setBusy(false);
     }
@@ -97,20 +195,74 @@ export default function HomePage() {
     return String(data.get(name) ?? "").trim();
   }
 
+  if (!authReady) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card auth-loading-card">
+          <div className="brand-mark">AP</div>
+          <h1>AcadPulse</h1>
+          <p>Checking your secure session…</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card">
+          <div className="auth-brand">
+            <div className="brand-mark">AP</div>
+            <div>
+              <p className="eyebrow">Academic Intelligence &amp; Management Platform</p>
+              <h1>AcadPulse</h1>
+            </div>
+          </div>
+          <p className="auth-copy">
+            Sign in with the account assigned to your organization or institution. Your available schools and academic data are determined securely by your account scope.
+          </p>
+          {authError && <div className="notice error">{authError}</div>}
+          <form className="auth-form" onSubmit={signIn}>
+            <label>
+              Email
+              <input name="email" type="email" autoComplete="username" placeholder="name@school.org" required />
+            </label>
+            <label>
+              Password
+              <input name="password" type="password" autoComplete="current-password" placeholder="Enter your password" minLength={8} required />
+            </label>
+            <button className="primary-button auth-button" disabled={signingIn}>
+              {signingIn ? "Signing in…" : "Sign In"}
+            </button>
+          </form>
+          <p className="auth-security-note">Access is limited to the organization or institution assigned to your account.</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="page-shell">
+      <section className="session-bar">
+        <div>
+          <strong>{currentUser.display_name}</strong>
+          <span>{roleNames.length ? roleNames.join(" · ") : "AcadPulse User"} · {scopeSummary}</span>
+        </div>
+        <button className="secondary-button" type="button" onClick={signOut}>Sign Out</button>
+      </section>
+
       <section className="hero compact-hero">
         <div>
-          <p className="eyebrow">AcadPulse Academic Management</p>
+          <p className="eyebrow">AcadPulse — Academic Intelligence &amp; Management Platform</p>
           <h1>School foundation setup</h1>
           <p className="hero-copy">
-            Configure the academic structure in a guided order. Scoreboard Generator and Result Analytics remain separate and unchanged.
+            Configure the academic structure in a guided order. Your institution choices are already restricted by your authenticated role and scope.
           </p>
         </div>
         <div className="status-card">
           <span>Current milestone</span>
           <strong>Institution → Year → Division → Grade → Class</strong>
-          <small>{selectedInstitution ? `Working on: ${selectedInstitution.display_name || selectedInstitution.official_name}` : "Create or select an institution to begin"}</small>
+          <small>{selectedInstitution ? `Working on: ${selectedInstitution.display_name || selectedInstitution.official_name}` : "No institution is available in your assigned scope"}</small>
         </div>
       </section>
 
@@ -156,37 +308,46 @@ export default function HomePage() {
         </aside>
 
         <div className="forms-stack">
-          <section className="panel setup-card">
-            <div className="card-heading"><div><span className="card-step">1</span><h2>Institution</h2></div><span>{institutions.length} created</span></div>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                const form = event.currentTarget;
-                const data = formData(event);
-                runAction(async () => {
-                  const created = await apiRequest<Institution>("/api/v1/institutions", {
-                    method: "POST",
-                    body: JSON.stringify({
-                      institution_code: value(data, "institution_code"),
-                      official_name: value(data, "official_name"),
-                      display_name: value(data, "display_name") || null,
-                      timezone: "Asia/Kolkata",
-                      status: "active",
-                    }),
-                  });
-                  await loadInstitutions();
-                  setSelectedInstitutionId(created.id);
-                  form.reset();
-                }, "Institution created successfully");
-              }}
-              className="form-grid"
-            >
-              <label>Institution Code<input name="institution_code" placeholder="e.g. APS01" required /></label>
-              <label>Official Name<input name="official_name" placeholder="School official name" required /></label>
-              <label className="full-width">Display Name<input name="display_name" placeholder="Optional shorter name" /></label>
-              <button disabled={busy} className="primary-button">Create Institution</button>
-            </form>
-          </section>
+          {currentUser.is_platform_admin ? (
+            <section className="panel setup-card">
+              <div className="card-heading"><div><span className="card-step">1</span><h2>Institution</h2></div><span>{institutions.length} accessible</span></div>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = event.currentTarget;
+                  const data = formData(event);
+                  runAction(async () => {
+                    const created = await apiRequest<Institution>("/api/v1/institutions", {
+                      method: "POST",
+                      body: JSON.stringify({
+                        institution_code: value(data, "institution_code"),
+                        official_name: value(data, "official_name"),
+                        display_name: value(data, "display_name") || null,
+                        timezone: "Asia/Kolkata",
+                        status: "active",
+                      }),
+                    });
+                    await loadInstitutions();
+                    setSelectedInstitutionId(created.id);
+                    form.reset();
+                  }, "Institution created successfully");
+                }}
+                className="form-grid"
+              >
+                <label>Institution Code<input name="institution_code" placeholder="e.g. APS01" required /></label>
+                <label>Official Name<input name="official_name" placeholder="School official name" required /></label>
+                <label className="full-width">Display Name<input name="display_name" placeholder="Optional shorter name" /></label>
+                <button disabled={busy} className="primary-button">Create Institution</button>
+              </form>
+            </section>
+          ) : (
+            <section className="panel setup-card scope-card">
+              <div className="card-heading"><div><span className="card-step">1</span><h2>Institution Access</h2></div><span>{institutions.length} accessible</span></div>
+              <p>
+                Institutions are assigned to your account by AcadPulse administration. Only schools within your authenticated scope appear in the selector above.
+              </p>
+            </section>
+          )}
 
           <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId}>
             <div className="card-heading"><div><span className="card-step">2</span><h2>Academic Year</h2></div><span>{years.length} created</span></div>
@@ -254,7 +415,7 @@ export default function HomePage() {
           </section>
 
           <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || !selectedYearId || divisions.length === 0}>
-            <div className="card-heading"><div><span className="card-step">4</span><h2>Grade & Division Mapping</h2></div><span>{grades.length} grades</span></div>
+            <div className="card-heading"><div><span className="card-step">4</span><h2>Grade &amp; Division Mapping</h2></div><span>{grades.length} grades</span></div>
             <form
               onSubmit={(event) => {
                 event.preventDefault();
