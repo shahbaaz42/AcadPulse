@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..access_control import AccessContext, accessible_institution_ids, get_current_access, require_institution_access, require_platform_admin
 from ..database import get_db
 from ..models.foundation import (
     AcademicDivision,
@@ -62,8 +63,25 @@ def _ensure_institution(record, institution_id: UUID, label: str) -> None:
         raise HTTPException(status_code=400, detail=f"{label} does not belong to this institution")
 
 
+def _require_record_access(record, access: AccessContext, db: Session) -> None:
+    require_institution_access(record.institution_id, access, db)
+
+
+def _scope_to_accessible_institutions(stmt, model, access: AccessContext, db: Session):
+    allowed = accessible_institution_ids(access, db)
+    if allowed is None:
+        return stmt
+    if not allowed:
+        return stmt.where(False)
+    return stmt.where(model.institution_id.in_(allowed))
+
+
 @router.post("/institutions", response_model=InstitutionRead, status_code=status.HTTP_201_CREATED)
-def create_institution(payload: InstitutionCreate, db: Session = Depends(get_db)):
+def create_institution(
+    payload: InstitutionCreate,
+    db: Session = Depends(get_db),
+    _: AccessContext = Depends(require_platform_admin),
+):
     item = Institution(**payload.model_dump())
     db.add(item)
     _commit(db, conflict_message="Institution code already exists")
@@ -72,18 +90,39 @@ def create_institution(payload: InstitutionCreate, db: Session = Depends(get_db)
 
 
 @router.get("/institutions", response_model=list[InstitutionRead])
-def list_institutions(db: Session = Depends(get_db)):
-    return db.scalars(select(Institution).order_by(Institution.official_name)).all()
+def list_institutions(
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
+    stmt = select(Institution)
+    allowed = accessible_institution_ids(access, db)
+    if allowed is not None:
+        if not allowed:
+            return []
+        stmt = stmt.where(Institution.id.in_(allowed))
+    return db.scalars(stmt.order_by(Institution.official_name)).all()
 
 
 @router.get("/institutions/{institution_id}", response_model=InstitutionRead)
-def get_institution(institution_id: UUID, db: Session = Depends(get_db)):
-    return _get_or_404(db, Institution, institution_id, "Institution")
+def get_institution(
+    institution_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
+    item = _get_or_404(db, Institution, institution_id, "Institution")
+    require_institution_access(item.id, access, db)
+    return item
 
 
 @router.patch("/institutions/{institution_id}", response_model=InstitutionRead)
-def update_institution(institution_id: UUID, payload: InstitutionUpdate, db: Session = Depends(get_db)):
+def update_institution(
+    institution_id: UUID,
+    payload: InstitutionUpdate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, Institution, institution_id, "Institution")
+    require_institution_access(item.id, access, db)
     _apply_updates(item, payload)
     _commit(db, conflict_message="Institution update conflicts with existing data")
     db.refresh(item)
@@ -91,7 +130,11 @@ def update_institution(institution_id: UUID, payload: InstitutionUpdate, db: Ses
 
 
 @router.delete("/institutions/{institution_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_institution(institution_id: UUID, db: Session = Depends(get_db)):
+def delete_institution(
+    institution_id: UUID,
+    db: Session = Depends(get_db),
+    _: AccessContext = Depends(require_platform_admin),
+):
     item = _get_or_404(db, Institution, institution_id, "Institution")
     db.delete(item)
     _commit(db, conflict_message="Institution has dependent records and cannot be deleted")
@@ -99,8 +142,13 @@ def delete_institution(institution_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/academic-years", response_model=AcademicYearRead, status_code=status.HTTP_201_CREATED)
-def create_academic_year(payload: AcademicYearCreate, db: Session = Depends(get_db)):
+def create_academic_year(
+    payload: AcademicYearCreate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
+    require_institution_access(payload.institution_id, access, db)
     item = AcademicYear(**payload.model_dump())
     db.add(item)
     _commit(db, conflict_message="Academic year already exists for this institution")
@@ -109,21 +157,40 @@ def create_academic_year(payload: AcademicYearCreate, db: Session = Depends(get_
 
 
 @router.get("/academic-years", response_model=list[AcademicYearRead])
-def list_academic_years(institution_id: UUID | None = None, db: Session = Depends(get_db)):
+def list_academic_years(
+    institution_id: UUID | None = None,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     stmt = select(AcademicYear)
     if institution_id:
+        require_institution_access(institution_id, access, db)
         stmt = stmt.where(AcademicYear.institution_id == institution_id)
+    else:
+        stmt = _scope_to_accessible_institutions(stmt, AcademicYear, access, db)
     return db.scalars(stmt.order_by(AcademicYear.start_date.desc())).all()
 
 
 @router.get("/academic-years/{item_id}", response_model=AcademicYearRead)
-def get_academic_year(item_id: UUID, db: Session = Depends(get_db)):
-    return _get_or_404(db, AcademicYear, item_id, "Academic year")
+def get_academic_year(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
+    item = _get_or_404(db, AcademicYear, item_id, "Academic year")
+    _require_record_access(item, access, db)
+    return item
 
 
 @router.patch("/academic-years/{item_id}", response_model=AcademicYearRead)
-def update_academic_year(item_id: UUID, payload: AcademicYearUpdate, db: Session = Depends(get_db)):
+def update_academic_year(
+    item_id: UUID,
+    payload: AcademicYearUpdate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, AcademicYear, item_id, "Academic year")
+    _require_record_access(item, access, db)
     values = payload.model_dump(exclude_unset=True)
     start_date = values.get("start_date", item.start_date)
     end_date = values.get("end_date", item.end_date)
@@ -136,16 +203,26 @@ def update_academic_year(item_id: UUID, payload: AcademicYearUpdate, db: Session
 
 
 @router.delete("/academic-years/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_academic_year(item_id: UUID, db: Session = Depends(get_db)):
+def delete_academic_year(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, AcademicYear, item_id, "Academic year")
+    _require_record_access(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Academic year has dependent records and cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/academic-divisions", response_model=AcademicDivisionRead, status_code=status.HTTP_201_CREATED)
-def create_academic_division(payload: AcademicDivisionCreate, db: Session = Depends(get_db)):
+def create_academic_division(
+    payload: AcademicDivisionCreate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
+    require_institution_access(payload.institution_id, access, db)
     item = AcademicDivision(**payload.model_dump())
     db.add(item)
     _commit(db, conflict_message="Academic division code already exists for this institution")
@@ -154,21 +231,40 @@ def create_academic_division(payload: AcademicDivisionCreate, db: Session = Depe
 
 
 @router.get("/academic-divisions", response_model=list[AcademicDivisionRead])
-def list_academic_divisions(institution_id: UUID | None = None, db: Session = Depends(get_db)):
+def list_academic_divisions(
+    institution_id: UUID | None = None,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     stmt = select(AcademicDivision)
     if institution_id:
+        require_institution_access(institution_id, access, db)
         stmt = stmt.where(AcademicDivision.institution_id == institution_id)
+    else:
+        stmt = _scope_to_accessible_institutions(stmt, AcademicDivision, access, db)
     return db.scalars(stmt.order_by(AcademicDivision.display_order, AcademicDivision.name)).all()
 
 
 @router.get("/academic-divisions/{item_id}", response_model=AcademicDivisionRead)
-def get_academic_division(item_id: UUID, db: Session = Depends(get_db)):
-    return _get_or_404(db, AcademicDivision, item_id, "Academic division")
+def get_academic_division(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
+    item = _get_or_404(db, AcademicDivision, item_id, "Academic division")
+    _require_record_access(item, access, db)
+    return item
 
 
 @router.patch("/academic-divisions/{item_id}", response_model=AcademicDivisionRead)
-def update_academic_division(item_id: UUID, payload: AcademicDivisionUpdate, db: Session = Depends(get_db)):
+def update_academic_division(
+    item_id: UUID,
+    payload: AcademicDivisionUpdate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, AcademicDivision, item_id, "Academic division")
+    _require_record_access(item, access, db)
     _apply_updates(item, payload)
     _commit(db, conflict_message="Academic division update conflicts with existing data")
     db.refresh(item)
@@ -176,16 +272,26 @@ def update_academic_division(item_id: UUID, payload: AcademicDivisionUpdate, db:
 
 
 @router.delete("/academic-divisions/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_academic_division(item_id: UUID, db: Session = Depends(get_db)):
+def delete_academic_division(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, AcademicDivision, item_id, "Academic division")
+    _require_record_access(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Academic division has dependent records and cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/grade-levels", response_model=GradeLevelRead, status_code=status.HTTP_201_CREATED)
-def create_grade_level(payload: GradeLevelCreate, db: Session = Depends(get_db)):
+def create_grade_level(
+    payload: GradeLevelCreate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
+    require_institution_access(payload.institution_id, access, db)
     item = GradeLevel(**payload.model_dump())
     db.add(item)
     _commit(db, conflict_message="Grade level code already exists for this institution")
@@ -194,21 +300,40 @@ def create_grade_level(payload: GradeLevelCreate, db: Session = Depends(get_db))
 
 
 @router.get("/grade-levels", response_model=list[GradeLevelRead])
-def list_grade_levels(institution_id: UUID | None = None, db: Session = Depends(get_db)):
+def list_grade_levels(
+    institution_id: UUID | None = None,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     stmt = select(GradeLevel)
     if institution_id:
+        require_institution_access(institution_id, access, db)
         stmt = stmt.where(GradeLevel.institution_id == institution_id)
+    else:
+        stmt = _scope_to_accessible_institutions(stmt, GradeLevel, access, db)
     return db.scalars(stmt.order_by(GradeLevel.level_order, GradeLevel.display_name)).all()
 
 
 @router.get("/grade-levels/{item_id}", response_model=GradeLevelRead)
-def get_grade_level(item_id: UUID, db: Session = Depends(get_db)):
-    return _get_or_404(db, GradeLevel, item_id, "Grade level")
+def get_grade_level(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
+    item = _get_or_404(db, GradeLevel, item_id, "Grade level")
+    _require_record_access(item, access, db)
+    return item
 
 
 @router.patch("/grade-levels/{item_id}", response_model=GradeLevelRead)
-def update_grade_level(item_id: UUID, payload: GradeLevelUpdate, db: Session = Depends(get_db)):
+def update_grade_level(
+    item_id: UUID,
+    payload: GradeLevelUpdate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, GradeLevel, item_id, "Grade level")
+    _require_record_access(item, access, db)
     _apply_updates(item, payload)
     _commit(db, conflict_message="Grade level update conflicts with existing data")
     db.refresh(item)
@@ -216,16 +341,26 @@ def update_grade_level(item_id: UUID, payload: GradeLevelUpdate, db: Session = D
 
 
 @router.delete("/grade-levels/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_grade_level(item_id: UUID, db: Session = Depends(get_db)):
+def delete_grade_level(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, GradeLevel, item_id, "Grade level")
+    _require_record_access(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Grade level has dependent records and cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/academic-division-grade-levels", response_model=AcademicDivisionGradeLevelRead, status_code=status.HTTP_201_CREATED)
-def create_division_grade_mapping(payload: AcademicDivisionGradeLevelCreate, db: Session = Depends(get_db)):
+def create_division_grade_mapping(
+    payload: AcademicDivisionGradeLevelCreate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
+    require_institution_access(payload.institution_id, access, db)
     year = _get_or_404(db, AcademicYear, payload.academic_year_id, "Academic year")
     division = _get_or_404(db, AcademicDivision, payload.academic_division_id, "Academic division")
     grade = _get_or_404(db, GradeLevel, payload.grade_level_id, "Grade level")
@@ -240,26 +375,44 @@ def create_division_grade_mapping(payload: AcademicDivisionGradeLevelCreate, db:
 
 
 @router.get("/academic-division-grade-levels", response_model=list[AcademicDivisionGradeLevelRead])
-def list_division_grade_mappings(institution_id: UUID | None = None, academic_year_id: UUID | None = None, db: Session = Depends(get_db)):
+def list_division_grade_mappings(
+    institution_id: UUID | None = None,
+    academic_year_id: UUID | None = None,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     stmt = select(AcademicDivisionGradeLevel)
     if institution_id:
+        require_institution_access(institution_id, access, db)
         stmt = stmt.where(AcademicDivisionGradeLevel.institution_id == institution_id)
+    else:
+        stmt = _scope_to_accessible_institutions(stmt, AcademicDivisionGradeLevel, access, db)
     if academic_year_id:
         stmt = stmt.where(AcademicDivisionGradeLevel.academic_year_id == academic_year_id)
     return db.scalars(stmt.order_by(AcademicDivisionGradeLevel.sequence_no)).all()
 
 
 @router.delete("/academic-division-grade-levels/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_division_grade_mapping(item_id: UUID, db: Session = Depends(get_db)):
+def delete_division_grade_mapping(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, AcademicDivisionGradeLevel, item_id, "Division-grade mapping")
+    _require_record_access(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Division-grade mapping cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/class-groups", response_model=ClassGroupRead, status_code=status.HTTP_201_CREATED)
-def create_class_group(payload: ClassGroupCreate, db: Session = Depends(get_db)):
+def create_class_group(
+    payload: ClassGroupCreate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
+    require_institution_access(payload.institution_id, access, db)
     year = _get_or_404(db, AcademicYear, payload.academic_year_id, "Academic year")
     grade = _get_or_404(db, GradeLevel, payload.grade_level_id, "Grade level")
     _ensure_institution(year, payload.institution_id, "Academic year")
@@ -281,10 +434,19 @@ def create_class_group(payload: ClassGroupCreate, db: Session = Depends(get_db))
 
 
 @router.get("/class-groups", response_model=list[ClassGroupRead])
-def list_class_groups(institution_id: UUID | None = None, academic_year_id: UUID | None = None, grade_level_id: UUID | None = None, db: Session = Depends(get_db)):
+def list_class_groups(
+    institution_id: UUID | None = None,
+    academic_year_id: UUID | None = None,
+    grade_level_id: UUID | None = None,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     stmt = select(ClassGroup)
     if institution_id:
+        require_institution_access(institution_id, access, db)
         stmt = stmt.where(ClassGroup.institution_id == institution_id)
+    else:
+        stmt = _scope_to_accessible_institutions(stmt, ClassGroup, access, db)
     if academic_year_id:
         stmt = stmt.where(ClassGroup.academic_year_id == academic_year_id)
     if grade_level_id:
@@ -293,13 +455,25 @@ def list_class_groups(institution_id: UUID | None = None, academic_year_id: UUID
 
 
 @router.get("/class-groups/{item_id}", response_model=ClassGroupRead)
-def get_class_group(item_id: UUID, db: Session = Depends(get_db)):
-    return _get_or_404(db, ClassGroup, item_id, "Class group")
+def get_class_group(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
+    item = _get_or_404(db, ClassGroup, item_id, "Class group")
+    _require_record_access(item, access, db)
+    return item
 
 
 @router.patch("/class-groups/{item_id}", response_model=ClassGroupRead)
-def update_class_group(item_id: UUID, payload: ClassGroupUpdate, db: Session = Depends(get_db)):
+def update_class_group(
+    item_id: UUID,
+    payload: ClassGroupUpdate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, ClassGroup, item_id, "Class group")
+    _require_record_access(item, access, db)
     _apply_updates(item, payload)
     _commit(db, conflict_message="Class group update conflicts with existing data")
     db.refresh(item)
@@ -307,8 +481,13 @@ def update_class_group(item_id: UUID, payload: ClassGroupUpdate, db: Session = D
 
 
 @router.delete("/class-groups/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_class_group(item_id: UUID, db: Session = Depends(get_db)):
+def delete_class_group(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+):
     item = _get_or_404(db, ClassGroup, item_id, "Class group")
+    _require_record_access(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Class group has dependent records and cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
