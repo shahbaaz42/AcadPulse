@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..access_control import AccessContext, get_current_access, require_platform_admin
+from ..access_control import AccessContext, get_current_access
 from ..database import get_db
 from ..models.access import Role, UserAccount, UserRoleAssignment
 from ..models.foundation import Institution
@@ -59,12 +59,48 @@ def current_user(access: AccessContext = Depends(get_current_access)) -> Current
     )
 
 
-@router.post("/admin/users", response_model=AdminUserRead, status_code=status.HTTP_201_CREATED)
-def create_or_reset_scoped_user(
+def _is_management_admin(access: AccessContext) -> bool:
+    return any(
+        assignment.role_code == "MANAGEMENT_ADMIN"
+        and assignment.scope_type == "organization"
+        and assignment.organization_id is not None
+        for assignment in access.assignments
+    )
+
+
+def _validate_management_target(
     payload: AdminUserCreate,
-    db: Session = Depends(get_db),
-    _: AccessContext = Depends(require_platform_admin),
-) -> AdminUserRead:
+    access: AccessContext,
+    db: Session,
+) -> tuple[Role, str, None, object]:
+    """Management may create/reset only Principal users inside its own organization."""
+    if payload.role_code.strip().upper() != "PRINCIPAL":
+        raise HTTPException(
+            status_code=403,
+            detail="Management / Group Admin may provision Principal accounts only",
+        )
+    if payload.institution_id is None or payload.organization_id is not None:
+        raise HTTPException(status_code=422, detail="PRINCIPAL requires an institution only")
+
+    institution = db.get(Institution, payload.institution_id)
+    if institution is None:
+        raise HTTPException(status_code=404, detail="Institution not found")
+    if institution.organization_id not in access.organization_ids:
+        raise HTTPException(
+            status_code=403,
+            detail="Principal can only be assigned to an institution within your organization",
+        )
+
+    role = db.scalar(select(Role).where(Role.code == "PRINCIPAL", Role.is_active.is_(True)))
+    if role is None:
+        raise HTTPException(status_code=422, detail="Requested role is not available")
+    return role, "institution", None, institution.id
+
+
+def _validate_platform_target(
+    payload: AdminUserCreate,
+    db: Session,
+) -> tuple[Role, str, object, object]:
     role_code = payload.role_code.strip().upper()
     if role_code not in SCOPED_ADMIN_ROLES:
         raise HTTPException(status_code=422, detail="Unsupported role for scoped user provisioning")
@@ -78,20 +114,60 @@ def create_or_reset_scoped_user(
             raise HTTPException(status_code=422, detail="Management Admin requires an organization only")
         if db.get(Organization, payload.organization_id) is None:
             raise HTTPException(status_code=404, detail="Organization not found")
-        scope_type = "organization"
-        organization_id = payload.organization_id
-        institution_id = None
+        return role, "organization", payload.organization_id, None
+
+    if payload.institution_id is None or payload.organization_id is not None:
+        raise HTTPException(status_code=422, detail=f"{role_code} requires an institution only")
+    if db.get(Institution, payload.institution_id) is None:
+        raise HTTPException(status_code=404, detail="Institution not found")
+    return role, "institution", None, payload.institution_id
+
+
+@router.post("/admin/users", response_model=AdminUserRead, status_code=status.HTTP_201_CREATED)
+def create_or_reset_scoped_user(
+    payload: AdminUserCreate,
+    db: Session = Depends(get_db),
+    access: AccessContext = Depends(get_current_access),
+) -> AdminUserRead:
+    if access.is_platform_admin:
+        role, scope_type, organization_id, institution_id = _validate_platform_target(payload, db)
+    elif _is_management_admin(access):
+        role, scope_type, organization_id, institution_id = _validate_management_target(payload, access, db)
     else:
-        if payload.institution_id is None or payload.organization_id is not None:
-            raise HTTPException(status_code=422, detail=f"{role_code} requires an institution only")
-        if db.get(Institution, payload.institution_id) is None:
-            raise HTTPException(status_code=404, detail="Institution not found")
-        scope_type = "institution"
-        organization_id = None
-        institution_id = payload.institution_id
+        raise HTTPException(
+            status_code=403,
+            detail="User provisioning requires Platform Admin or Management / Group Admin access",
+        )
 
     email = payload.email.strip().lower()
     user = db.scalar(select(UserAccount).where(func.lower(UserAccount.email) == email))
+
+    if user is not None and user.is_platform_admin:
+        raise HTTPException(status_code=403, detail="Platform administrator accounts cannot be reset here")
+
+    if user is not None and not access.is_platform_admin:
+        active_assignments = db.execute(
+            select(UserRoleAssignment, Role)
+            .join(Role, Role.id == UserRoleAssignment.role_id)
+            .where(
+                UserRoleAssignment.user_id == user.id,
+                UserRoleAssignment.is_active.is_(True),
+                Role.is_active.is_(True),
+            )
+        ).all()
+        for assignment, existing_role in active_assignments:
+            if existing_role.code != "PRINCIPAL" or assignment.institution_id is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Management cannot reset an account assigned to another role",
+                )
+            existing_institution = db.get(Institution, assignment.institution_id)
+            if existing_institution is None or existing_institution.organization_id not in access.organization_ids:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Management cannot reset a user outside its organization",
+                )
+
     if user is None:
         user = UserAccount(
             id=uuid4(),
