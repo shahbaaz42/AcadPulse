@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AcadPulse — Academic Management Preview</title>
+  <title>AcadPulse — Academic Management</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
@@ -12,20 +12,20 @@
 <body>
   <header class="topbar">
     <a class="brand" href="../"><span class="brand-mark">A</span><span><strong>AcadPulse</strong><small>Academic Intelligence Platform</small></span></a>
-    <div class="top-actions"><span class="preview-badge">Browser Preview</span><a href="../">← Existing Tools</a></div>
+    <div class="top-actions"><span class="preview-badge" id="apiBadge">Connecting…</span><a href="../">← Existing Tools</a></div>
   </header>
 
   <main class="page-shell">
     <section class="hero">
       <div>
         <span class="eyebrow">ACADEMIC MANAGEMENT · FOUNDATION</span>
-        <h1>Set up the school structure,<br><em>one simple step at a time.</em></h1>
-        <p>This preview demonstrates the first AcadPulse academic-management workflow. Data entered here is stored only in this browser for preview purposes.</p>
+        <h1>Set up once.<br><em>Carry the structure forward each year.</em></h1>
+        <p>Institution, divisions and grades are permanent master data. Academic years, yearly grade mappings and class sections are created for each academic year and can be carried forward from the previous year.</p>
       </div>
       <div class="status-card">
-        <small>Milestone 1</small>
-        <strong>Institution → Year → Division → Grade → Class</strong>
-        <p>Real platform persistence will use FastAPI + PostgreSQL.</p>
+        <small>Central platform</small>
+        <strong>Browser → FastAPI → PostgreSQL</strong>
+        <p id="apiStatus">Checking the AcadPulse API…</p>
       </div>
     </section>
 
@@ -41,17 +41,18 @@
       <aside class="steps-card">
         <span class="eyebrow">GUIDED SETUP</span>
         <ol class="steps">
-          <li class="active"><b>1</b><span><strong>Institution</strong><small>Create the school profile</small></span></li>
-          <li><b>2</b><span><strong>Academic Year</strong><small>Set the working year</small></span></li>
-          <li><b>3</b><span><strong>Division</strong><small>Add academic divisions</small></span></li>
-          <li><b>4</b><span><strong>Grade</strong><small>Create and map grades</small></span></li>
-          <li><b>5</b><span><strong>Class</strong><small>Create sections / class groups</small></span></li>
+          <li class="active"><b>1</b><span><strong>Institution</strong><small>One-time school profile</small></span></li>
+          <li><b>2</b><span><strong>Divisions</strong><small>One-time school structure</small></span></li>
+          <li><b>3</b><span><strong>Grades</strong><small>One-time grade master</small></span></li>
+          <li><b>4</b><span><strong>Academic Year</strong><small>Create each new year</small></span></li>
+          <li><b>5</b><span><strong>Year Mapping</strong><small>Assign grades to divisions</small></span></li>
+          <li><b>6</b><span><strong>Classes</strong><small>Year-specific sections</small></span></li>
         </ol>
       </aside>
 
       <div class="forms-stack">
         <section class="setup-card">
-          <div class="card-heading"><div><span class="number">01</span><div><h2>Institution</h2><p>Create or select a school</p></div></div><span id="institutionCount">0 created</span></div>
+          <div class="card-heading"><div><span class="number">01</span><div><h2>Institution</h2><p>Permanent school identity — create once</p></div></div><span id="institutionCount">0 created</span></div>
           <form id="institutionForm" class="form-grid">
             <label>Institution Code<input name="code" placeholder="e.g. APS01" required></label>
             <label>Official Name<input name="name" placeholder="School official name" required></label>
@@ -60,18 +61,8 @@
           </form>
         </section>
 
-        <section class="setup-card locked" id="yearCard">
-          <div class="card-heading"><div><span class="number">02</span><div><h2>Academic Year</h2><p>Define the active academic year</p></div></div><span id="yearCount">0 created</span></div>
-          <form id="yearForm" class="form-grid">
-            <label>Year Name<input name="name" placeholder="2026-2027" required></label>
-            <label>Start Date<input name="startDate" type="date" required></label>
-            <label>End Date<input name="endDate" type="date" required></label>
-            <button class="primary" type="submit">Add Academic Year</button>
-          </form>
-        </section>
-
         <section class="setup-card locked" id="divisionCard">
-          <div class="card-heading"><div><span class="number">03</span><div><h2>Academic Division</h2><p>Use the school’s own structure</p></div></div><span id="divisionCount">0 created</span></div>
+          <div class="card-heading"><div><span class="number">02</span><div><h2>Academic Divisions</h2><p>Permanent master data — e.g. Primary, Secondary</p></div></div><span id="divisionCount">0 created</span></div>
           <form id="divisionForm" class="form-grid">
             <label>Division Code<input name="code" placeholder="SEC" required></label>
             <label>Division Name<input name="name" placeholder="Secondary" required></label>
@@ -81,20 +72,40 @@
         </section>
 
         <section class="setup-card locked" id="gradeCard">
-          <div class="card-heading"><div><span class="number">04</span><div><h2>Grade & Division Mapping</h2><p>Create a grade and assign its division</p></div></div><span id="gradeCount">0 grades</span></div>
+          <div class="card-heading"><div><span class="number">03</span><div><h2>Grade Master</h2><p>Permanent grades — Grade I, II … XII</p></div></div><span id="gradeCount">0 grades</span></div>
           <form id="gradeForm" class="form-grid">
             <label>Grade Code<input name="code" placeholder="X" required></label>
             <label>Grade Name<input name="name" placeholder="Grade 10" required></label>
             <label>Level Order<input name="order" type="number" min="1" value="10" required></label>
-            <label>Academic Division<select name="divisionId" required><option value="">Select division</option></select></label>
             <button class="primary" type="submit">Add Grade</button>
           </form>
         </section>
 
-        <section class="setup-card locked" id="classCard">
-          <div class="card-heading"><div><span class="number">05</span><div><h2>Class Group / Section</h2><p>Create the actual class students belong to</p></div></div><span id="classCount">0 created</span></div>
-          <form id="classForm" class="form-grid">
+        <section class="setup-card locked" id="yearCard">
+          <div class="card-heading"><div><span class="number">04</span><div><h2>Academic Year</h2><p>Year-specific setup — create one new record each year</p></div></div><span id="yearCount">0 created</span></div>
+          <form id="yearForm" class="form-grid">
+            <label>Year Name<input name="name" placeholder="2026-2027" required></label>
+            <label>Start Date<input name="startDate" type="date" required></label>
+            <label>End Date<input name="endDate" type="date" required></label>
+            <button class="primary" type="submit">Add Academic Year</button>
+          </form>
+          <div class="preview-note compact-note"><strong>New academic year?</strong> After creating it, you can copy the previous year's grade mappings and class sections instead of rebuilding them manually. <button id="copyPreviousYear" type="button" disabled>Copy Previous Year Structure</button></div>
+        </section>
+
+        <section class="setup-card locked" id="mappingCard">
+          <div class="card-heading"><div><span class="number">05</span><div><h2>Grade → Division Mapping</h2><p>Year-specific: assign a permanent grade to its division for the selected year</p></div></div><span id="mappingCount">0 mapped</span></div>
+          <form id="mappingForm" class="form-grid">
             <label>Grade<select name="gradeId" required><option value="">Select grade</option></select></label>
+            <label>Academic Division<select name="divisionId" required><option value="">Select division</option></select></label>
+            <label>Sequence<input name="sequence" type="number" min="1" placeholder="Optional"></label>
+            <button class="primary" type="submit">Map Grade</button>
+          </form>
+        </section>
+
+        <section class="setup-card locked" id="classCard">
+          <div class="card-heading"><div><span class="number">06</span><div><h2>Class Group / Section</h2><p>Year-specific classes students belong to</p></div></div><span id="classCount">0 created</span></div>
+          <form id="classForm" class="form-grid">
+            <label>Mapped Grade<select name="gradeId" required><option value="">Select grade</option></select></label>
             <label>Section Code<input name="section" placeholder="BA" required></label>
             <label>Display Name<input name="displayName" placeholder="X BA" required></label>
             <label>Capacity<input name="capacity" type="number" min="1" placeholder="40"></label>
@@ -107,15 +118,15 @@
     <section class="summary-grid">
       <article><strong id="summaryYears">0</strong><span>Academic Years</span></article>
       <article><strong id="summaryDivisions">0</strong><span>Divisions</span></article>
-      <article><strong id="summaryGrades">0</strong><span>Grades</span></article>
-      <article><strong id="summaryClasses">0</strong><span>Classes</span></article>
+      <article><strong id="summaryGrades">0</strong><span>Permanent Grades</span></article>
+      <article><strong id="summaryClasses">0</strong><span>Classes This Year</span></article>
     </section>
 
     <div id="notice" class="notice" hidden></div>
-    <section class="preview-note"><strong>Preview mode:</strong> entries are saved to your browser using localStorage. They are not yet saved to the PostgreSQL platform database. <button id="resetPreview" type="button">Reset preview data</button></section>
+    <section class="preview-note"><strong>Central persistence:</strong> academic setup data on this page is loaded from and saved to the AcadPulse PostgreSQL platform database. The browser remembers only your current institution/year selection.</section>
   </main>
 
-  <footer>AcadPulse · Academic Management Preview</footer>
+  <footer>AcadPulse · Academic Management</footer>
   <script src="app.js"></script>
 </body>
 </html>
