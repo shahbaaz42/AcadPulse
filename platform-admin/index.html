@@ -15,21 +15,40 @@
   </header>
   <main class="page-shell">
     <section class="page-heading">
-      <div><span class="eyebrow">PLATFORM ADMIN</span><h1>Institution Onboarding</h1><p>Create and manage institutions that use AcadPulse.</p></div>
+      <div><span class="eyebrow">PLATFORM ADMIN</span><h1>Organization &amp; Institution Onboarding</h1><p>Create a school group first, then add the subscribed institutions under it.</p></div>
     </section>
+
     <section class="setup-card">
-      <div class="card-heading"><div><span class="number">01</span><div><h2>Create Institution</h2><p>Platform-level setup. School users will not see other institutions.</p></div></div><span id="institutionCount">0 institutions</span></div>
+      <div class="card-heading"><div><span class="number">01</span><div><h2>Create Organization / School Group</h2><p>Example: Unity Group of Schools</p></div></div><span id="organizationCount">0 organizations</span></div>
+      <form id="organizationForm" class="form-grid">
+        <label>Organization Code<input name="code" placeholder="UNITY-GROUP" required></label>
+        <label>Organization Name<input name="name" placeholder="Unity Group of Schools" required></label>
+        <label>Display Name<input name="displayName" placeholder="Unity Group"></label>
+        <button class="primary" type="submit">Create Organization</button>
+      </form>
+    </section>
+
+    <section class="setup-card">
+      <div class="card-heading"><div><span class="number">02</span><div><h2>Create Institution</h2><p>Add only institutions subscribed to AcadPulse.</p></div></div><span id="institutionCount">0 institutions</span></div>
       <form id="institutionForm" class="form-grid">
-        <label>Institution Code<input name="code" placeholder="UPS-DEMO" required></label>
-        <label>Official Name<input name="name" placeholder="Unity Public School — AcadPulse Test" required></label>
-        <label>Display Name<input name="displayName" placeholder="Unity Test"></label>
+        <label>Organization<select name="organizationId" id="organizationSelect" required><option value="">Select organization</option></select></label>
+        <label>Institution Code<input name="code" placeholder="UPS-CBSE" required></label>
+        <label>Official Name<input name="name" placeholder="Unity Public School" required></label>
+        <label>Display Name<input name="displayName" placeholder="Unity Public School"></label>
         <button class="primary" type="submit">Create Institution</button>
       </form>
     </section>
+
     <section class="setup-card">
-      <div class="card-heading"><div><span class="number">02</span><div><h2>Institutions</h2><p>Visible only in the platform administration area.</p></div></div></div>
-      <div id="institutionList" class="preview-note">Loading institutions…</div>
+      <div class="card-heading"><div><span class="number">03</span><div><h2>Organization Structure</h2><p>Platform administrators can see all groups and their institutions.</p></div></div></div>
+      <div id="organizationList" class="preview-note">Loading organizations…</div>
     </section>
+
+    <section class="setup-card" id="unassignedCard" hidden>
+      <div class="card-heading"><div><span class="number">04</span><div><h2>Unassigned Institutions</h2><p>Assign existing institutions created before the organization layer was added.</p></div></div></div>
+      <div id="unassignedList" class="preview-note"></div>
+    </section>
+
     <div id="notice" class="notice" hidden></div>
   </main>
   <footer><strong>AcadPulse</strong><span>Platform Administration</span></footer>
