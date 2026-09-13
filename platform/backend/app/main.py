@@ -3,10 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from .database import engine
-from .routers import foundation_router, organization_router
+from .routers import auth_router, foundation_router, organization_router
 from .settings import settings
 
-app = FastAPI(title=settings.app_name, version="0.5.0")
+app = FastAPI(title=settings.app_name, version="0.6.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,6 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(foundation_router)
 app.include_router(organization_router)
 
