@@ -5,7 +5,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..access_control import AccessContext, accessible_institution_ids, get_current_access, require_institution_access, require_platform_admin
+from ..access_control import (
+    AccessContext,
+    accessible_institution_ids,
+    get_current_access,
+    require_academic_setup_write,
+    require_institution_access,
+    require_platform_admin,
+)
 from ..database import get_db
 from ..models.foundation import (
     AcademicDivision,
@@ -67,6 +74,10 @@ def _require_record_access(record, access: AccessContext, db: Session) -> None:
     require_institution_access(record.institution_id, access, db)
 
 
+def _require_record_write(record, access: AccessContext, db: Session) -> None:
+    require_academic_setup_write(record.institution_id, access, db)
+
+
 def _scope_to_accessible_institutions(stmt, model, access: AccessContext, db: Session):
     allowed = accessible_institution_ids(access, db)
     if allowed is None:
@@ -122,7 +133,7 @@ def update_institution(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, Institution, institution_id, "Institution")
-    require_institution_access(item.id, access, db)
+    require_academic_setup_write(item.id, access, db)
     _apply_updates(item, payload)
     _commit(db, conflict_message="Institution update conflicts with existing data")
     db.refresh(item)
@@ -148,7 +159,7 @@ def create_academic_year(
     access: AccessContext = Depends(get_current_access),
 ):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
-    require_institution_access(payload.institution_id, access, db)
+    require_academic_setup_write(payload.institution_id, access, db)
     item = AcademicYear(**payload.model_dump())
     db.add(item)
     _commit(db, conflict_message="Academic year already exists for this institution")
@@ -190,7 +201,7 @@ def update_academic_year(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, AcademicYear, item_id, "Academic year")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     values = payload.model_dump(exclude_unset=True)
     start_date = values.get("start_date", item.start_date)
     end_date = values.get("end_date", item.end_date)
@@ -209,7 +220,7 @@ def delete_academic_year(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, AcademicYear, item_id, "Academic year")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Academic year has dependent records and cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -222,7 +233,7 @@ def create_academic_division(
     access: AccessContext = Depends(get_current_access),
 ):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
-    require_institution_access(payload.institution_id, access, db)
+    require_academic_setup_write(payload.institution_id, access, db)
     item = AcademicDivision(**payload.model_dump())
     db.add(item)
     _commit(db, conflict_message="Academic division code already exists for this institution")
@@ -264,7 +275,7 @@ def update_academic_division(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, AcademicDivision, item_id, "Academic division")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     _apply_updates(item, payload)
     _commit(db, conflict_message="Academic division update conflicts with existing data")
     db.refresh(item)
@@ -278,7 +289,7 @@ def delete_academic_division(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, AcademicDivision, item_id, "Academic division")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Academic division has dependent records and cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -291,7 +302,7 @@ def create_grade_level(
     access: AccessContext = Depends(get_current_access),
 ):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
-    require_institution_access(payload.institution_id, access, db)
+    require_academic_setup_write(payload.institution_id, access, db)
     item = GradeLevel(**payload.model_dump())
     db.add(item)
     _commit(db, conflict_message="Grade level code already exists for this institution")
@@ -333,7 +344,7 @@ def update_grade_level(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, GradeLevel, item_id, "Grade level")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     _apply_updates(item, payload)
     _commit(db, conflict_message="Grade level update conflicts with existing data")
     db.refresh(item)
@@ -347,7 +358,7 @@ def delete_grade_level(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, GradeLevel, item_id, "Grade level")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Grade level has dependent records and cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -360,7 +371,7 @@ def create_division_grade_mapping(
     access: AccessContext = Depends(get_current_access),
 ):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
-    require_institution_access(payload.institution_id, access, db)
+    require_academic_setup_write(payload.institution_id, access, db)
     year = _get_or_404(db, AcademicYear, payload.academic_year_id, "Academic year")
     division = _get_or_404(db, AcademicDivision, payload.academic_division_id, "Academic division")
     grade = _get_or_404(db, GradeLevel, payload.grade_level_id, "Grade level")
@@ -399,7 +410,7 @@ def delete_division_grade_mapping(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, AcademicDivisionGradeLevel, item_id, "Division-grade mapping")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Division-grade mapping cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -412,7 +423,7 @@ def create_class_group(
     access: AccessContext = Depends(get_current_access),
 ):
     _get_or_404(db, Institution, payload.institution_id, "Institution")
-    require_institution_access(payload.institution_id, access, db)
+    require_academic_setup_write(payload.institution_id, access, db)
     year = _get_or_404(db, AcademicYear, payload.academic_year_id, "Academic year")
     grade = _get_or_404(db, GradeLevel, payload.grade_level_id, "Grade level")
     _ensure_institution(year, payload.institution_id, "Academic year")
@@ -473,7 +484,7 @@ def update_class_group(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, ClassGroup, item_id, "Class group")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     _apply_updates(item, payload)
     _commit(db, conflict_message="Class group update conflicts with existing data")
     db.refresh(item)
@@ -487,7 +498,7 @@ def delete_class_group(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, ClassGroup, item_id, "Class group")
-    _require_record_access(item, access, db)
+    _require_record_write(item, access, db)
     db.delete(item)
     _commit(db, conflict_message="Class group has dependent records and cannot be deleted")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

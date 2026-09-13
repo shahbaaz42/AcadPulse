@@ -128,6 +128,25 @@ def require_institution_access(institution_id: UUID, access: AccessContext, db: 
         raise HTTPException(status_code=403, detail="Institution is outside your assigned access scope")
 
 
+def require_academic_setup_write(institution_id: UUID, access: AccessContext, db: Session) -> None:
+    """Allow school-foundation writes only to platform, Principal, or School Admin users."""
+    require_institution_access(institution_id, access, db)
+    if access.is_platform_admin:
+        return
+
+    can_write = any(
+        assignment.role_code in {"PRINCIPAL", "SCHOOL_ADMIN"}
+        and assignment.scope_type == "institution"
+        and assignment.institution_id == institution_id
+        for assignment in access.assignments
+    )
+    if not can_write:
+        raise HTTPException(
+            status_code=403,
+            detail="This role has view-only access to school academic setup",
+        )
+
+
 def require_organization_access(organization_id: UUID, access: AccessContext) -> None:
     if access.is_platform_admin:
         return
