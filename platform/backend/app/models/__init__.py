@@ -6,8 +6,10 @@ from .foundation import (
     GradeLevel,
     Institution,
 )
+from .organization import Organization
 
 __all__ = [
+    "Organization",
     "Institution",
     "AcademicYear",
     "AcademicDivision",
