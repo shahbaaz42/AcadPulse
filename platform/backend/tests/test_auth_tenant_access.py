@@ -161,3 +161,79 @@ def test_management_and_principal_are_tenant_scoped() -> None:
     principal_organizations = client.get("/api/v1/organizations", headers=principal_headers)
     assert principal_organizations.status_code == 200
     assert principal_organizations.json() == []
+
+
+def test_platform_admin_can_provision_management_user() -> None:
+    admin_headers = _platform_admin_headers()
+    organization, institution = _create_organization_and_institution(admin_headers, "PROVISION")
+    email = f"management-{uuid4().hex[:8]}@example.com"
+    password = "Management-Test-2026!"
+
+    provision = client.post(
+        "/api/v1/auth/admin/users",
+        headers=admin_headers,
+        json={
+            "email": email,
+            "display_name": "Provisioned Management Admin",
+            "password": password,
+            "role_code": "MANAGEMENT_ADMIN",
+            "organization_id": organization["id"],
+            "institution_id": None,
+        },
+    )
+    assert provision.status_code == 201, provision.text
+    body = provision.json()
+    assert body["role_code"] == "MANAGEMENT_ADMIN"
+    assert body["scope_type"] == "organization"
+    assert body["organization_id"] == organization["id"]
+
+    management_headers = _login_headers(email, password)
+    visible = client.get("/api/v1/institutions", headers=management_headers)
+    assert visible.status_code == 200
+    assert {item["id"] for item in visible.json()} == {institution["id"]}
+
+
+def test_management_is_view_only_for_school_academic_setup() -> None:
+    admin_headers = _platform_admin_headers()
+    organization, institution = _create_organization_and_institution(admin_headers, "READONLY")
+
+    management_email, management_password = _create_user_with_scope(
+        "MANAGEMENT_ADMIN",
+        organization_id=UUID(organization["id"]),
+    )
+    management_headers = _login_headers(management_email, management_password)
+
+    denied = client.post(
+        "/api/v1/academic-years",
+        headers=management_headers,
+        json={
+            "institution_id": institution["id"],
+            "name": "2026-27",
+            "start_date": "2026-06-01",
+            "end_date": "2027-05-31",
+            "status": "active",
+            "is_current": True,
+        },
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "This role has view-only access to school academic setup"
+
+    principal_email, principal_password = _create_user_with_scope(
+        "PRINCIPAL",
+        institution_id=UUID(institution["id"]),
+    )
+    principal_headers = _login_headers(principal_email, principal_password)
+
+    allowed = client.post(
+        "/api/v1/academic-years",
+        headers=principal_headers,
+        json={
+            "institution_id": institution["id"],
+            "name": "2026-27",
+            "start_date": "2026-06-01",
+            "end_date": "2027-05-31",
+            "status": "active",
+            "is_current": True,
+        },
+    )
+    assert allowed.status_code == 201, allowed.text
