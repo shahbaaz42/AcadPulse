@@ -1,8 +1,14 @@
 """Create or reset an AcadPulse platform administrator from the command line."""
 
 import argparse
+import sys
 from getpass import getpass
+from pathlib import Path
 from uuid import uuid4
+
+# Allow this script to be run directly from platform/backend with
+# `python scripts/create_platform_admin.py ...`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import func, select
 
