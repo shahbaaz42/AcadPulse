@@ -82,11 +82,30 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   return (await response.json()) as T;
 }
 
+export type Organization = {
+  id: string;
+  organization_code: string;
+  name: string;
+  display_name: string | null;
+  status: string;
+};
+
 export type Institution = {
   id: string;
   institution_code: string;
   official_name: string;
   display_name: string | null;
+};
+
+export type AdminUserProvisioned = {
+  id: string;
+  email: string;
+  display_name: string;
+  role_code: "MANAGEMENT_ADMIN" | "PRINCIPAL" | "SCHOOL_ADMIN";
+  role_name: string;
+  scope_type: "organization" | "institution";
+  organization_id: string | null;
+  institution_id: string | null;
 };
 
 export type AcademicYear = {
