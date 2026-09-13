@@ -1,8 +1,36 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
 
+const ACCESS_TOKEN_KEY = "acadpulse_access_token";
+
 export type ApiErrorBody = {
   detail?: string | Array<{ msg?: string }>;
+};
+
+export type ApiRequestOptions = RequestInit & {
+  auth?: boolean;
+};
+
+export type AuthTokenResponse = {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+};
+
+export type AccessAssignment = {
+  role_code: string;
+  role_name: string;
+  scope_type: "platform" | "organization" | "institution";
+  organization_id: string | null;
+  institution_id: string | null;
+};
+
+export type CurrentUser = {
+  id: string;
+  email: string;
+  display_name: string;
+  is_platform_admin: boolean;
+  assignments: AccessAssignment[];
 };
 
 function errorMessage(body: ApiErrorBody | null, fallback: string) {
@@ -12,16 +40,35 @@ function errorMessage(body: ApiErrorBody | null, fallback: string) {
   return messages.length ? messages.join(", ") : fallback;
 }
 
-export async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+export function getAccessToken() {
+  if (typeof window === "undefined") return null;
+  return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function setAccessToken(token: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+}
+
+export function clearAccessToken() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { auth = true, ...requestOptions } = options;
+  const token = auth ? getAccessToken() : null;
+  const headers = new Headers(requestOptions.headers);
+  headers.set("Content-Type", "application/json");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers ?? {}),
-    },
+    ...requestOptions,
+    headers,
   });
 
   if (!response.ok) {
+    if (response.status === 401 && auth) clearAccessToken();
     let body: ApiErrorBody | null = null;
     try {
       body = (await response.json()) as ApiErrorBody;
