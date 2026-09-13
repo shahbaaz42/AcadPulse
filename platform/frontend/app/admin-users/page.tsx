@@ -15,17 +15,32 @@ type RoleCode = "MANAGEMENT_ADMIN" | "PRINCIPAL" | "SCHOOL_ADMIN";
 
 export default function AdminUsersPage() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [roleCode, setRoleCode] = useState<RoleCode>("MANAGEMENT_ADMIN");
-  const [displayName, setDisplayName] = useState("Unity Group Management Admin");
-  const [email, setEmail] = useState("management@acadpulse.test");
-  const [password, setPassword] = useState("Manage123456!");
+  const [roleCode, setRoleCode] = useState<RoleCode>("PRINCIPAL");
+  const [displayName, setDisplayName] = useState("School Principal");
+  const [email, setEmail] = useState("principal@acadpulse.test");
+  const [password, setPassword] = useState("Principal123!");
   const [organizationId, setOrganizationId] = useState("");
   const [institutionId, setInstitutionId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const isManagementAdmin = useMemo(
+    () =>
+      Boolean(
+        currentUser?.assignments.some(
+          (assignment) =>
+            assignment.role_code === "MANAGEMENT_ADMIN" &&
+            assignment.scope_type === "organization",
+        ),
+      ),
+    [currentUser],
+  );
+
+  const canProvisionUsers = Boolean(currentUser?.is_platform_admin || isManagementAdmin);
 
   useEffect(() => {
     Promise.all([
@@ -39,29 +54,44 @@ export default function AdminUsersPage() {
         setInstitutions(schools);
         if (orgs.length === 1) setOrganizationId(orgs[0].id);
         if (schools.length === 1) setInstitutionId(schools[0].id);
+
+        const management = user.assignments.some(
+          (assignment) =>
+            assignment.role_code === "MANAGEMENT_ADMIN" &&
+            assignment.scope_type === "organization",
+        );
+        if (user.is_platform_admin) {
+          setRoleCode("MANAGEMENT_ADMIN");
+          setDisplayName("Group Management");
+          setEmail("management@acadpulse.test");
+          setPassword("Manage123456!");
+        } else if (management) {
+          setRoleCode("PRINCIPAL");
+          setDisplayName("School Principal");
+          setEmail("principal@acadpulse.test");
+          setPassword("Principal123!");
+        }
       })
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoaded(true));
   }, []);
 
-  const targetLabel = useMemo(
-    () => (roleCode === "MANAGEMENT_ADMIN" ? "Organization" : "Institution"),
-    [roleCode],
-  );
+  const targetLabel = roleCode === "MANAGEMENT_ADMIN" ? "Organization" : "Institution";
 
   function changeRole(next: RoleCode) {
     setRoleCode(next);
     setMessage("");
     setError("");
     if (next === "MANAGEMENT_ADMIN") {
-      setDisplayName("Unity Group Management Admin");
+      setDisplayName("Group Management");
       setEmail("management@acadpulse.test");
       setPassword("Manage123456!");
     } else if (next === "PRINCIPAL") {
-      setDisplayName("Unity Public School Principal");
+      setDisplayName("School Principal");
       setEmail("principal@acadpulse.test");
       setPassword("Principal123!");
     } else {
-      setDisplayName("Unity Kids School Admin");
+      setDisplayName("School Admin");
       setEmail("schooladmin@acadpulse.test");
       setPassword("SchoolAdmin123!");
     }
@@ -92,11 +122,20 @@ export default function AdminUsersPage() {
     }
   }
 
-  if (currentUser && !currentUser.is_platform_admin) {
+  if (!loaded) {
     return (
       <main style={{ maxWidth: 760, margin: "48px auto", padding: 24 }}>
-        <h1>Platform administration only</h1>
-        <p>This page is available only to the AcadPulse Platform Admin.</p>
+        <p>Checking your AcadPulse access…</p>
+      </main>
+    );
+  }
+
+  if (!canProvisionUsers) {
+    return (
+      <main style={{ maxWidth: 760, margin: "48px auto", padding: 24 }}>
+        <h1>User administration unavailable</h1>
+        <p>This page is available to AcadPulse Platform Admin and authorized Management / Group Admin accounts.</p>
+        {error ? <p style={{ color: "crimson", fontWeight: 700 }}>{error}</p> : null}
         <Link href="/">Return to AcadPulse</Link>
       </main>
     );
@@ -107,22 +146,31 @@ export default function AdminUsersPage() {
       <p style={{ marginBottom: 8 }}>AcadPulse — Academic Intelligence &amp; Management Platform</p>
       <h1 style={{ marginTop: 0 }}>User &amp; role provisioning</h1>
       <p>
-        Create controlled test/admin accounts and assign exactly one organization or institution scope.
-        Tenant visibility is still enforced by the backend.
+        {currentUser?.is_platform_admin
+          ? "Create the first controlled organization or institution administrator accounts. Tenant visibility is enforced by the backend."
+          : "Create Principal accounts only for institutions within your organization. You cannot assign users outside your organization."}
       </p>
 
       <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 28 }}>
         <label>
           Role
-          <select
-            value={roleCode}
-            onChange={(event) => changeRole(event.target.value as RoleCode)}
-            style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }}
-          >
-            <option value="MANAGEMENT_ADMIN">Management / Group Admin</option>
-            <option value="PRINCIPAL">Principal</option>
-            <option value="SCHOOL_ADMIN">School Admin</option>
-          </select>
+          {currentUser?.is_platform_admin ? (
+            <select
+              value={roleCode}
+              onChange={(event) => changeRole(event.target.value as RoleCode)}
+              style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }}
+            >
+              <option value="MANAGEMENT_ADMIN">Management / Group Admin</option>
+              <option value="PRINCIPAL">Principal</option>
+              <option value="SCHOOL_ADMIN">School Admin</option>
+            </select>
+          ) : (
+            <input
+              value="Principal"
+              readOnly
+              style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }}
+            />
+          )}
         </label>
 
         <label>
@@ -167,7 +215,11 @@ export default function AdminUsersPage() {
           </label>
         )}
 
-        <button type="submit" disabled={saving || !currentUser?.is_platform_admin} style={{ padding: "11px 16px", fontWeight: 700 }}>
+        <button
+          type="submit"
+          disabled={saving || !canProvisionUsers || (roleCode === "MANAGEMENT_ADMIN" ? !organizationId : !institutionId)}
+          style={{ padding: "11px 16px", fontWeight: 700 }}
+        >
           {saving ? "Creating…" : "Create / reset user"}
         </button>
       </form>
@@ -176,7 +228,7 @@ export default function AdminUsersPage() {
       {error ? <p style={{ marginTop: 18, color: "crimson", fontWeight: 700 }}>{error}</p> : null}
 
       <p style={{ marginTop: 28 }}>
-        <Link href="/">← Back to School foundation setup</Link>
+        <Link href="/">← Back to School foundation</Link>
       </p>
     </main>
   );
