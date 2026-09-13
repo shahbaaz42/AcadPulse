@@ -1,13 +1,52 @@
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
+from app.database import SessionLocal
 from app.main import app
+from app.models.access import Role, UserAccount, UserRoleAssignment
+from app.security import hash_password
 
 client = TestClient(app)
 
 
+def _platform_admin_headers() -> dict[str, str]:
+    suffix = uuid4().hex[:10]
+    email = f"platform-{suffix}@example.com"
+    password = "AcadPulse-Test-Admin-2026!"
+
+    with SessionLocal() as db:
+        role = db.scalar(select(Role).where(Role.code == "PLATFORM_ADMIN"))
+        assert role is not None
+        user = UserAccount(
+            email=email,
+            display_name="AcadPulse Test Platform Admin",
+            password_hash=hash_password(password),
+            status="active",
+            is_platform_admin=True,
+        )
+        db.add(user)
+        db.flush()
+        db.add(
+            UserRoleAssignment(
+                user_id=user.id,
+                role_id=role.id,
+                scope_type="platform",
+                organization_id=None,
+                institution_id=None,
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
 def test_foundation_setup_flow() -> None:
+    headers = _platform_admin_headers()
     suffix = uuid4().hex[:8].upper()
 
     health = client.get("/health")
@@ -16,6 +55,7 @@ def test_foundation_setup_flow() -> None:
 
     institution_response = client.post(
         "/api/v1/institutions",
+        headers=headers,
         json={
             "institution_code": f"APS{suffix}",
             "official_name": "AcadPulse Test School",
@@ -30,6 +70,7 @@ def test_foundation_setup_flow() -> None:
 
     year_response = client.post(
         "/api/v1/academic-years",
+        headers=headers,
         json={
             "institution_id": institution_id,
             "name": "2026-2027",
@@ -44,6 +85,7 @@ def test_foundation_setup_flow() -> None:
 
     division_response = client.post(
         "/api/v1/academic-divisions",
+        headers=headers,
         json={
             "institution_id": institution_id,
             "code": f"SEC{suffix}",
@@ -57,6 +99,7 @@ def test_foundation_setup_flow() -> None:
 
     grade_response = client.post(
         "/api/v1/grade-levels",
+        headers=headers,
         json={
             "institution_id": institution_id,
             "code": f"X{suffix}",
@@ -70,6 +113,7 @@ def test_foundation_setup_flow() -> None:
 
     mapping_response = client.post(
         "/api/v1/academic-division-grade-levels",
+        headers=headers,
         json={
             "institution_id": institution_id,
             "academic_year_id": academic_year_id,
@@ -82,6 +126,7 @@ def test_foundation_setup_flow() -> None:
 
     class_response = client.post(
         "/api/v1/class-groups",
+        headers=headers,
         json={
             "institution_id": institution_id,
             "academic_year_id": academic_year_id,
@@ -98,6 +143,7 @@ def test_foundation_setup_flow() -> None:
 
     classes_response = client.get(
         "/api/v1/class-groups",
+        headers=headers,
         params={"institution_id": institution_id, "academic_year_id": academic_year_id},
     )
     assert classes_response.status_code == 200
@@ -106,20 +152,25 @@ def test_foundation_setup_flow() -> None:
 
 
 def test_class_requires_grade_mapping() -> None:
+    headers = _platform_admin_headers()
     suffix = uuid4().hex[:8].upper()
 
-    institution = client.post(
+    institution_response = client.post(
         "/api/v1/institutions",
+        headers=headers,
         json={
             "institution_code": f"NOMAP{suffix}",
             "official_name": "No Mapping Test School",
             "timezone": "Asia/Kolkata",
             "status": "active",
         },
-    ).json()
+    )
+    assert institution_response.status_code == 201, institution_response.text
+    institution = institution_response.json()
 
-    year = client.post(
+    year_response = client.post(
         "/api/v1/academic-years",
+        headers=headers,
         json={
             "institution_id": institution["id"],
             "name": f"2026-2027-{suffix}",
@@ -128,10 +179,13 @@ def test_class_requires_grade_mapping() -> None:
             "status": "active",
             "is_current": False,
         },
-    ).json()
+    )
+    assert year_response.status_code == 201, year_response.text
+    year = year_response.json()
 
-    grade = client.post(
+    grade_response = client.post(
         "/api/v1/grade-levels",
+        headers=headers,
         json={
             "institution_id": institution["id"],
             "code": f"IX{suffix}",
@@ -139,10 +193,13 @@ def test_class_requires_grade_mapping() -> None:
             "level_order": 9,
             "is_active": True,
         },
-    ).json()
+    )
+    assert grade_response.status_code == 201, grade_response.text
+    grade = grade_response.json()
 
     response = client.post(
         "/api/v1/class-groups",
+        headers=headers,
         json={
             "institution_id": institution["id"],
             "academic_year_id": year["id"],
