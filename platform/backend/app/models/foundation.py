@@ -16,6 +16,7 @@ class Institution(TimestampMixin, Base):
     __tablename__ = "institutions"
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    organization_id: Mapped[UUID | None] = mapped_column(ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=True, index=True)
     institution_code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     official_name: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(255))
