@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AcadPulse Platform Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../academic-management/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">A</span><span><strong>AcadPulse</strong><small>Academic Intelligence &amp; Management Platform</small></span></div>
+  </header>
+  <main class="page-shell">
+    <section class="page-heading">
+      <div><span class="eyebrow">PLATFORM ADMIN</span><h1>Institution Onboarding</h1><p>Create and manage institutions that use AcadPulse.</p></div>
+    </section>
+    <section class="setup-card">
+      <div class="card-heading"><div><span class="number">01</span><div><h2>Create Institution</h2><p>Platform-level setup. School users will not see other institutions.</p></div></div><span id="institutionCount">0 institutions</span></div>
+      <form id="institutionForm" class="form-grid">
+        <label>Institution Code<input name="code" placeholder="UPS-DEMO" required></label>
+        <label>Official Name<input name="name" placeholder="Unity Public School — AcadPulse Test" required></label>
+        <label>Display Name<input name="displayName" placeholder="Unity Test"></label>
+        <button class="primary" type="submit">Create Institution</button>
+      </form>
+    </section>
+    <section class="setup-card">
+      <div class="card-heading"><div><span class="number">02</span><div><h2>Institutions</h2><p>Visible only in the platform administration area.</p></div></div></div>
+      <div id="institutionList" class="preview-note">Loading institutions…</div>
+    </section>
+    <div id="notice" class="notice" hidden></div>
+  </main>
+  <footer><strong>AcadPulse</strong><span>Platform Administration</span></footer>
+  <script src="app.js"></script>
+</body>
+</html>
