@@ -1,3 +1,4 @@
+from .access import Role, UserAccount, UserRoleAssignment
 from .foundation import (
     AcademicDivision,
     AcademicDivisionGradeLevel,
@@ -16,4 +17,7 @@ __all__ = [
     "GradeLevel",
     "AcademicDivisionGradeLevel",
     "ClassGroup",
+    "UserAccount",
+    "Role",
+    "UserRoleAssignment",
 ]
