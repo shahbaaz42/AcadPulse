@@ -1,4 +1,11 @@
 from .access import Role, UserAccount, UserRoleAssignment
+from .academic_responsibility import (
+    StaffAcademicResponsibility,
+    StaffResponsibilityClassGroup,
+    StaffResponsibilityGrade,
+    StaffResponsibilitySubject,
+    Subject,
+)
 from .foundation import (
     AcademicDivision,
     AcademicDivisionGradeLevel,
@@ -17,6 +24,11 @@ __all__ = [
     "GradeLevel",
     "AcademicDivisionGradeLevel",
     "ClassGroup",
+    "Subject",
+    "StaffAcademicResponsibility",
+    "StaffResponsibilitySubject",
+    "StaffResponsibilityGrade",
+    "StaffResponsibilityClassGroup",
     "UserAccount",
     "Role",
     "UserRoleAssignment",
