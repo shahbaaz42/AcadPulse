@@ -23,6 +23,7 @@ class AccessAssignment:
     scope_type: str
     organization_id: UUID | None
     institution_id: UUID | None
+    academic_division_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,17 @@ class AccessContext:
         return {
             assignment.institution_id
             for assignment in self.assignments
-            if assignment.scope_type == "institution" and assignment.institution_id is not None
+            if assignment.scope_type in {"institution", "academic_compartment"}
+            and assignment.institution_id is not None
+        }
+
+    @property
+    def academic_compartment_ids(self) -> set[UUID]:
+        return {
+            assignment.academic_division_id
+            for assignment in self.assignments
+            if assignment.scope_type == "academic_compartment"
+            and assignment.academic_division_id is not None
         }
 
 
@@ -95,6 +106,7 @@ def get_current_access(
             scope_type=assignment.scope_type,
             organization_id=assignment.organization_id,
             institution_id=assignment.institution_id,
+            academic_division_id=assignment.academic_division_id,
         )
         for assignment, role in rows
     )

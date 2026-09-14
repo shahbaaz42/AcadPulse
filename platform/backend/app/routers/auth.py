@@ -53,6 +53,7 @@ def current_user(access: AccessContext = Depends(get_current_access)) -> Current
                 scope_type=assignment.scope_type,
                 organization_id=assignment.organization_id,
                 institution_id=assignment.institution_id,
+                academic_division_id=assignment.academic_division_id,
             )
             for assignment in access.assignments
         ],
@@ -198,6 +199,7 @@ def create_or_reset_scoped_user(
             UserRoleAssignment.scope_type == scope_type,
             UserRoleAssignment.organization_id == organization_id,
             UserRoleAssignment.institution_id == institution_id,
+            UserRoleAssignment.academic_division_id.is_(None),
         )
     )
     if assignment is None:
@@ -207,6 +209,7 @@ def create_or_reset_scoped_user(
             scope_type=scope_type,
             organization_id=organization_id,
             institution_id=institution_id,
+            academic_division_id=None,
             is_active=True,
         )
         db.add(assignment)

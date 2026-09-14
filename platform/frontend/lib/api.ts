@@ -20,9 +20,10 @@ export type AuthTokenResponse = {
 export type AccessAssignment = {
   role_code: string;
   role_name: string;
-  scope_type: "platform" | "organization" | "institution";
+  scope_type: "platform" | "organization" | "institution" | "academic_compartment";
   organization_id: string | null;
   institution_id: string | null;
+  academic_division_id: string | null;
 };
 
 export type CurrentUser = {
@@ -101,11 +102,12 @@ export type AdminUserProvisioned = {
   id: string;
   email: string;
   display_name: string;
-  role_code: "MANAGEMENT_ADMIN" | "PRINCIPAL" | "SCHOOL_ADMIN";
+  role_code: "MANAGEMENT_ADMIN" | "PRINCIPAL" | "SCHOOL_ADMIN" | "COMPARTMENT_HEAD";
   role_name: string;
-  scope_type: "organization" | "institution";
+  scope_type: "organization" | "institution" | "academic_compartment";
   organization_id: string | null;
   institution_id: string | null;
+  academic_division_ids: string[];
 };
 
 export type AcademicYear = {

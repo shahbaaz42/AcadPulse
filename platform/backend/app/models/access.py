@@ -38,13 +38,14 @@ class UserRoleAssignment(AccessTimestampMixin, Base):
     __tablename__ = "user_role_assignments"
     __table_args__ = (
         CheckConstraint(
-            "scope_type IN ('platform', 'organization', 'institution')",
+            "scope_type IN ('platform', 'organization', 'institution', 'academic_compartment')",
             name="ck_user_role_scope_type",
         ),
         CheckConstraint(
-            "(scope_type = 'platform' AND organization_id IS NULL AND institution_id IS NULL) OR "
-            "(scope_type = 'organization' AND organization_id IS NOT NULL AND institution_id IS NULL) OR "
-            "(scope_type = 'institution' AND organization_id IS NULL AND institution_id IS NOT NULL)",
+            "(scope_type = 'platform' AND organization_id IS NULL AND institution_id IS NULL AND academic_division_id IS NULL) OR "
+            "(scope_type = 'organization' AND organization_id IS NOT NULL AND institution_id IS NULL AND academic_division_id IS NULL) OR "
+            "(scope_type = 'institution' AND organization_id IS NULL AND institution_id IS NOT NULL AND academic_division_id IS NULL) OR "
+            "(scope_type = 'academic_compartment' AND organization_id IS NULL AND institution_id IS NOT NULL AND academic_division_id IS NOT NULL)",
             name="ck_user_role_scope_target",
         ),
     )
@@ -55,4 +56,5 @@ class UserRoleAssignment(AccessTimestampMixin, Base):
     scope_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     organization_id: Mapped[UUID | None] = mapped_column(ForeignKey("organizations.id", ondelete="RESTRICT"), index=True)
     institution_id: Mapped[UUID | None] = mapped_column(ForeignKey("institutions.id", ondelete="RESTRICT"), index=True)
+    academic_division_id: Mapped[UUID | None] = mapped_column(ForeignKey("academic_divisions.id", ondelete="RESTRICT"), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
