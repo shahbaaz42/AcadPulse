@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
+  AcademicDivision,
   AdminUserProvisioned,
   CurrentUser,
   Institution,
@@ -11,13 +12,15 @@ import {
   apiRequest,
 } from "../../lib/api";
 
-type RoleCode = "MANAGEMENT_ADMIN" | "PRINCIPAL" | "SCHOOL_ADMIN";
+type RoleCode = "MANAGEMENT_ADMIN" | "PRINCIPAL" | "SCHOOL_ADMIN" | "COMPARTMENT_HEAD";
 
 export default function AdminUsersPage() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [academicDivisions, setAcademicDivisions] = useState<AcademicDivision[]>([]);
+  const [academicDivisionIds, setAcademicDivisionIds] = useState<string[]>([]);
   const [roleCode, setRoleCode] = useState<RoleCode>("PRINCIPAL");
   const [displayName, setDisplayName] = useState("School Principal");
   const [email, setEmail] = useState("principal@acadpulse.test");
@@ -83,6 +86,18 @@ export default function AdminUsersPage() {
       .finally(() => setLoaded(true));
   }, []);
 
+  useEffect(() => {
+    setAcademicDivisionIds([]);
+    if (!isPrincipal || !institutionId) {
+      setAcademicDivisions([]);
+      return;
+    }
+
+    apiRequest<AcademicDivision[]>(`/api/v1/academic-divisions?institution_id=${institutionId}`)
+      .then(setAcademicDivisions)
+      .catch((err: Error) => setError(err.message));
+  }, [isPrincipal, institutionId]);
+
   const targetLabel = roleCode === "MANAGEMENT_ADMIN" ? "Organization" : "Institution";
   const principalSingleInstitution = isPrincipal && institutions.length === 1 ? institutions[0] : null;
 
@@ -91,16 +106,27 @@ export default function AdminUsersPage() {
     setMessage("");
     setError("");
     setPassword("");
+    setAcademicDivisionIds([]);
+
     if (next === "MANAGEMENT_ADMIN") {
       setDisplayName("Group Management");
       setEmail("management@acadpulse.test");
     } else if (next === "PRINCIPAL") {
       setDisplayName("School Principal");
       setEmail("principal@acadpulse.test");
+    } else if (next === "COMPARTMENT_HEAD") {
+      setDisplayName("Compartment Head");
+      setEmail("compartmenthead@acadpulse.test");
     } else {
       setDisplayName("School Admin");
       setEmail("schooladmin@acadpulse.test");
     }
+  }
+
+  function toggleAcademicDivision(divisionId: string) {
+    setAcademicDivisionIds((current) => current.includes(divisionId)
+      ? current.filter((id) => id !== divisionId)
+      : [...current, divisionId]);
   }
 
   async function submit(event: FormEvent) {
@@ -109,7 +135,12 @@ export default function AdminUsersPage() {
     setError("");
     setSaving(true);
     try {
-      const endpoint = isPrincipal ? "/api/v1/principal/school-admins" : "/api/v1/auth/admin/users";
+      const endpoint = isPrincipal
+        ? roleCode === "COMPARTMENT_HEAD"
+          ? "/api/v1/principal/compartment-heads"
+          : "/api/v1/principal/school-admins"
+        : "/api/v1/auth/admin/users";
+
       const created = await apiRequest<AdminUserProvisioned>(endpoint, {
         method: "POST",
         body: JSON.stringify({
@@ -119,6 +150,7 @@ export default function AdminUsersPage() {
           role_code: roleCode,
           organization_id: roleCode === "MANAGEMENT_ADMIN" ? organizationId || null : null,
           institution_id: roleCode === "MANAGEMENT_ADMIN" ? null : institutionId || null,
+          academic_division_ids: roleCode === "COMPARTMENT_HEAD" ? academicDivisionIds : [],
         }),
       });
       setMessage(`${created.role_name} ready: ${created.email}`);
@@ -149,7 +181,12 @@ export default function AdminUsersPage() {
     ? "Create controlled organization or institution administrator accounts. Tenant visibility is enforced by the backend."
     : isManagementAdmin
       ? "Create/Manage Principal accounts for institutions of your organization."
-      : "Create/Manage School Admin accounts for your assigned institution.";
+      : "Create/Manage School Admin and Compartment Head accounts for your assigned institution.";
+
+  const submitDisabled = saving
+    || !canProvisionUsers
+    || (roleCode === "MANAGEMENT_ADMIN" ? !organizationId : !institutionId)
+    || (roleCode === "COMPARTMENT_HEAD" && academicDivisionIds.length === 0);
 
   return (
     <main style={{ maxWidth: 760, margin: "40px auto", padding: 24 }}>
@@ -166,8 +203,13 @@ export default function AdminUsersPage() {
               <option value="PRINCIPAL">Principal</option>
               <option value="SCHOOL_ADMIN">School Admin</option>
             </select>
+          ) : isPrincipal ? (
+            <select value={roleCode} onChange={(event) => changeRole(event.target.value as RoleCode)} style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }}>
+              <option value="SCHOOL_ADMIN">School Admin — institution-wide</option>
+              <option value="COMPARTMENT_HEAD">Compartment Head — selected Academic Compartment(s)</option>
+            </select>
           ) : (
-            <input value={isManagementAdmin ? "Principal" : "School Admin"} readOnly style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} />
+            <input value="Principal" readOnly style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} />
           )}
         </label>
 
@@ -202,7 +244,25 @@ export default function AdminUsersPage() {
           </label>
         )}
 
-        <button type="submit" disabled={saving || !canProvisionUsers || (roleCode === "MANAGEMENT_ADMIN" ? !organizationId : !institutionId)} style={{ padding: "11px 16px", fontWeight: 700 }}>
+        {roleCode === "COMPARTMENT_HEAD" ? (
+          <fieldset style={{ border: "1px solid #bbb", borderRadius: 6, padding: 14 }}>
+            <legend style={{ fontWeight: 700 }}>Academic Compartment access</legend>
+            <p style={{ marginTop: 0 }}>Select one or more Academic Compartments this user will be responsible for.</p>
+            {academicDivisions.length ? academicDivisions.map((division) => (
+              <label key={division.id} style={{ display: "block", marginTop: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={academicDivisionIds.includes(division.id)}
+                  onChange={() => toggleAcademicDivision(division.id)}
+                  style={{ marginRight: 8 }}
+                />
+                {division.name} ({division.code})
+              </label>
+            )) : <p>No Academic Compartments are available for this institution.</p>}
+          </fieldset>
+        ) : null}
+
+        <button type="submit" disabled={submitDisabled} style={{ padding: "11px 16px", fontWeight: 700 }}>
           {saving ? "Creating…" : "Create / reset user"}
         </button>
       </form>
