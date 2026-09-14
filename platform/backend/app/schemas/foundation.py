@@ -78,6 +78,7 @@ class AcademicDivisionCreate(BaseModel):
 
 
 class AcademicDivisionUpdate(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=50)
     name: str | None = Field(default=None, min_length=1, max_length=120)
     display_order: int | None = Field(default=None, ge=1)
     is_active: bool | None = None
@@ -103,6 +104,7 @@ class GradeLevelCreate(BaseModel):
 
 
 class GradeLevelUpdate(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=50)
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     level_order: int | None = Field(default=None, ge=1)
     is_active: bool | None = None
