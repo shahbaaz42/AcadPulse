@@ -78,6 +78,7 @@ class AcademicDivisionCreate(BaseModel):
 
 
 class AcademicDivisionUpdate(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=50)
     name: str | None = Field(default=None, min_length=1, max_length=120)
     display_order: int | None = Field(default=None, ge=1)
     is_active: bool | None = None
@@ -103,6 +104,7 @@ class GradeLevelCreate(BaseModel):
 
 
 class GradeLevelUpdate(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=50)
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     level_order: int | None = Field(default=None, ge=1)
     is_active: bool | None = None
@@ -124,6 +126,11 @@ class AcademicDivisionGradeLevelCreate(BaseModel):
     academic_year_id: UUID
     academic_division_id: UUID
     grade_level_id: UUID
+    sequence_no: int | None = Field(default=None, ge=1)
+
+
+class AcademicDivisionGradeLevelUpdate(BaseModel):
+    academic_division_id: UUID | None = None
     sequence_no: int | None = Field(default=None, ge=1)
 
 
@@ -149,6 +156,7 @@ class ClassGroupCreate(BaseModel):
 
 
 class ClassGroupUpdate(BaseModel):
+    grade_level_id: UUID | None = None
     section_code: str | None = Field(default=None, min_length=1, max_length=50)
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     capacity: int | None = Field(default=None, ge=1)
