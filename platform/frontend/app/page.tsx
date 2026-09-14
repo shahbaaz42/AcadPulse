@@ -20,6 +20,7 @@ import {
 
 type Notice = { type: "success" | "error"; text: string } | null;
 type EditTarget = { kind: "year" | "division" | "grade" | "class"; id: string } | null;
+type SectionSortDirection = "asc" | "desc";
 
 const setupSteps = [
   ["1", "Institution", "Work within your assigned institution"],
@@ -58,6 +59,7 @@ export default function HomePage() {
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<EditTarget>(null);
+  const [sectionSortDirection, setSectionSortDirection] = useState<SectionSortDirection>("asc");
 
   const selectedInstitution = useMemo(
     () => institutions.find((item) => item.id === selectedInstitutionId),
@@ -101,6 +103,26 @@ export default function HomePage() {
     () => classes.filter((item) => !selectedYearId || item.academic_year_id === selectedYearId),
     [classes, selectedYearId],
   );
+
+  const sortedCurrentClasses = useMemo(() => {
+    const gradeOrder = new Map(grades.map((grade) => [grade.id, grade.level_order]));
+    const gradeDirection = sectionSortDirection === "asc" ? 1 : -1;
+
+    return [...currentClasses].sort((a, b) => {
+      const aGradeOrder = gradeOrder.get(a.grade_level_id) ?? Number.MAX_SAFE_INTEGER;
+      const bGradeOrder = gradeOrder.get(b.grade_level_id) ?? Number.MAX_SAFE_INTEGER;
+      const gradeComparison = (aGradeOrder - bGradeOrder) * gradeDirection;
+      if (gradeComparison !== 0) return gradeComparison;
+
+      const sectionComparison = a.section_code.localeCompare(b.section_code, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      if (sectionComparison !== 0) return sectionComparison;
+
+      return a.display_name.localeCompare(b.display_name, undefined, { numeric: true, sensitivity: "base" });
+    });
+  }, [currentClasses, grades, sectionSortDirection]);
 
   const divisionName = (id: string) => divisions.find((item) => item.id === id)?.name ?? "—";
   const gradeName = (id: string) => grades.find((item) => item.id === id)?.display_name ?? "—";
@@ -230,8 +252,22 @@ export default function HomePage() {
 
   const classRows = (
     <div className="record-list">
-      <h3>Existing Sections</h3>
-      {currentClasses.length ? <div className="table-scroll"><table className="records-table"><thead><tr><th>Grade</th><th>Section Code</th><th>Section Display Name</th>{canWriteAcademicSetup && <th>Action</th>}</tr></thead><tbody>{currentClasses.map((item) => (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+        <h3 style={{ margin: 0 }}>Existing Sections</h3>
+        <label style={{ display: "grid", gap: 5, color: "#475569", fontSize: ".78rem", fontWeight: 700 }}>
+          Sort by Grade Order
+          <select
+            value={sectionSortDirection}
+            onChange={(event) => setSectionSortDirection(event.target.value as SectionSortDirection)}
+            aria-label="Sort existing sections by grade order"
+            style={{ border: "1px solid #d8deea", borderRadius: 9, background: "#fff", padding: "7px 10px", color: "#172033" }}
+          >
+            <option value="asc">Ascending ↑</option>
+            <option value="desc">Descending ↓</option>
+          </select>
+        </label>
+      </div>
+      {sortedCurrentClasses.length ? <div className="table-scroll"><table className="records-table"><thead><tr><th>Grade</th><th>Section Code</th><th>Section Display Name</th>{canWriteAcademicSetup && <th>Action</th>}</tr></thead><tbody>{sortedCurrentClasses.map((item) => (
         <tr key={item.id}><td>{gradeName(item.grade_level_id)}</td><td>{item.section_code}</td><td><strong>{item.display_name}</strong></td>{canWriteAcademicSetup && <td><EditButton onClick={() => setEditing({ kind: "class", id: item.id })} /></td>}</tr>
       ))}</tbody></table></div> : <p className="empty-records">No sections have been configured for the selected academic year.</p>}
     </div>
