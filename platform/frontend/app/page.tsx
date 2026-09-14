@@ -76,6 +76,10 @@ export default function HomePage() {
     [currentUser],
   );
 
+  const hasSingleInstitutionScope = Boolean(
+    currentUser && !currentUser.is_platform_admin && !isManagementAdmin && institutions.length === 1,
+  );
+
   const canWriteAcademicSetup = useMemo(() => {
     if (!currentUser) return false;
     if (currentUser.is_platform_admin) return true;
@@ -91,6 +95,7 @@ export default function HomePage() {
     if (!currentUser) return "";
     if (currentUser.is_platform_admin) return "Platform-wide access";
     if (currentUser.assignments.some((assignment) => assignment.scope_type === "organization")) return "Organization-scoped access";
+    if (currentUser.assignments.some((assignment) => assignment.scope_type === "academic_compartment")) return "Academic Compartment-scoped access";
     return "Institution-scoped access";
   }, [currentUser]);
 
@@ -300,9 +305,13 @@ export default function HomePage() {
       {isManagementAdmin && <div className="notice success">Academic structure is managed at institution level. You can create Principal accounts for schools in your organization from Manage users.</div>}
 
       <section className="panel context-panel">
-        <div><p className="eyebrow">Current context</p><h2>Choose institution and academic year</h2></div>
+        <div><p className="eyebrow">Current context</p><h2>{hasSingleInstitutionScope ? "Institution and academic year" : "Choose institution and academic year"}</h2></div>
         <div className="context-controls">
-          <label>Institution<select value={selectedInstitutionId} onChange={(event) => setSelectedInstitutionId(event.target.value)}><option value="">Select institution</option>{institutions.map((item) => <option value={item.id} key={item.id}>{item.display_name || item.official_name}</option>)}</select></label>
+          {hasSingleInstitutionScope && selectedInstitution ? (
+            <div className="context-static"><span>Institution</span><strong>{selectedInstitution.display_name || selectedInstitution.official_name}</strong></div>
+          ) : (
+            <label>Institution<select value={selectedInstitutionId} onChange={(event) => setSelectedInstitutionId(event.target.value)}><option value="">Select institution</option>{institutions.map((item) => <option value={item.id} key={item.id}>{item.display_name || item.official_name}</option>)}</select></label>
+          )}
           <label>Academic Year<select value={selectedYearId} onChange={(event) => setSelectedYearId(event.target.value)} disabled={!selectedInstitutionId}><option value="">Select academic year</option>{years.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
         </div>
       </section>
@@ -322,7 +331,7 @@ export default function HomePage() {
               </form>
             </section>
           ) : (
-            <section className="panel setup-card scope-card"><div className="card-heading"><div><span className="card-step">1</span><h2>Institution Access</h2></div><span>{institutions.length} accessible</span></div><p>Your assigned institution is ready for academic setup.</p></section>
+            <section className="panel setup-card scope-card"><div className="card-heading"><div><span className="card-step">1</span><h2>Institution Access</h2></div>{!hasSingleInstitutionScope && <span>{institutions.length} accessible</span>}</div><p>Your assigned institution is ready for academic setup.</p></section>
           )}
 
           <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || (!isManagementAdmin && !canWriteAcademicSetup)}>
