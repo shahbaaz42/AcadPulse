@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
   AcademicDivision,
+  AcademicDivisionGradeLevel,
   AcademicYear,
   apiRequest,
   AuthTokenResponse,
@@ -18,6 +19,7 @@ import {
 } from "../lib/api";
 
 type Notice = { type: "success" | "error"; text: string } | null;
+type EditTarget = { kind: "year" | "division" | "grade" | "class"; id: string } | null;
 
 const setupSteps = [
   ["1", "Institution", "Work within your assigned institution"],
@@ -36,6 +38,10 @@ function InfoTip({ children, label }: { children: React.ReactNode; label: string
   );
 }
 
+function EditButton({ onClick }: { onClick: () => void }) {
+  return <button className="table-edit-button" type="button" onClick={onClick}>Edit</button>;
+}
+
 export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -45,11 +51,13 @@ export default function HomePage() {
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [divisions, setDivisions] = useState<AcademicDivision[]>([]);
   const [grades, setGrades] = useState<GradeLevel[]>([]);
+  const [mappings, setMappings] = useState<AcademicDivisionGradeLevel[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [selectedInstitutionId, setSelectedInstitutionId] = useState("");
   const [selectedYearId, setSelectedYearId] = useState("");
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<EditTarget>(null);
 
   const selectedInstitution = useMemo(
     () => institutions.find((item) => item.id === selectedInstitutionId),
@@ -84,9 +92,23 @@ export default function HomePage() {
     return "Institution-scoped access";
   }, [currentUser]);
 
+  const currentMappings = useMemo(
+    () => mappings.filter((item) => item.academic_year_id === selectedYearId),
+    [mappings, selectedYearId],
+  );
+
+  const currentClasses = useMemo(
+    () => classes.filter((item) => !selectedYearId || item.academic_year_id === selectedYearId),
+    [classes, selectedYearId],
+  );
+
+  const divisionName = (id: string) => divisions.find((item) => item.id === id)?.name ?? "—";
+  const gradeName = (id: string) => grades.find((item) => item.id === id)?.display_name ?? "—";
+  const mappingForGrade = (gradeId: string) => currentMappings.find((item) => item.grade_level_id === gradeId);
+
   function resetAcademicState() {
-    setInstitutions([]); setYears([]); setDivisions([]); setGrades([]); setClasses([]);
-    setSelectedInstitutionId(""); setSelectedYearId(""); setNotice(null);
+    setInstitutions([]); setYears([]); setDivisions([]); setGrades([]); setMappings([]); setClasses([]);
+    setSelectedInstitutionId(""); setSelectedYearId(""); setNotice(null); setEditing(null);
   }
 
   function handleAuthenticatedError(error: unknown) {
@@ -104,15 +126,16 @@ export default function HomePage() {
 
   async function loadInstitutionContext(institutionId: string) {
     if (!institutionId) {
-      setYears([]); setDivisions([]); setGrades([]); setClasses([]); setSelectedYearId(""); return;
+      setYears([]); setDivisions([]); setGrades([]); setMappings([]); setClasses([]); setSelectedYearId(""); return;
     }
-    const [yearData, divisionData, gradeData, classData] = await Promise.all([
+    const [yearData, divisionData, gradeData, mappingData, classData] = await Promise.all([
       apiRequest<AcademicYear[]>(`/api/v1/academic-years?institution_id=${institutionId}`),
       apiRequest<AcademicDivision[]>(`/api/v1/academic-divisions?institution_id=${institutionId}`),
       apiRequest<GradeLevel[]>(`/api/v1/grade-levels?institution_id=${institutionId}`),
+      apiRequest<AcademicDivisionGradeLevel[]>(`/api/v1/academic-division-grade-levels?institution_id=${institutionId}`),
       apiRequest<ClassGroup[]>(`/api/v1/class-groups?institution_id=${institutionId}`),
     ]);
-    setYears(yearData); setDivisions(divisionData); setGrades(gradeData); setClasses(classData);
+    setYears(yearData); setDivisions(divisionData); setGrades(gradeData); setMappings(mappingData); setClasses(classData);
     setSelectedYearId((current) => yearData.some((item) => item.id === current) ? current : yearData[0]?.id ?? "");
   }
 
@@ -126,7 +149,8 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => { if (currentUser) loadInstitutions().catch(handleAuthenticatedError); }, [currentUser]);
-  useEffect(() => { if (currentUser) loadInstitutionContext(selectedInstitutionId).catch(handleAuthenticatedError); }, [selectedInstitutionId, currentUser]);
+  useEffect(() => { if (currentUser) { setEditing(null); loadInstitutionContext(selectedInstitutionId).catch(handleAuthenticatedError); } }, [selectedInstitutionId, currentUser]);
+  useEffect(() => { setEditing(null); }, [selectedYearId]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -176,6 +200,42 @@ export default function HomePage() {
       </main>
     );
   }
+
+  const yearRows = (
+    <div className="record-list">
+      <h3>Existing Academic Years</h3>
+      {years.length ? <div className="table-scroll"><table className="records-table"><thead><tr><th>Academic Year</th><th>Start</th><th>End</th><th>Current</th>{canWriteAcademicSetup && <th>Action</th>}</tr></thead><tbody>{years.map((item) => (
+        <tr key={item.id}><td><strong>{item.name}</strong></td><td>{item.start_date}</td><td>{item.end_date}</td><td>{item.is_current ? "Yes" : "No"}</td>{canWriteAcademicSetup && <td><EditButton onClick={() => setEditing({ kind: "year", id: item.id })} /></td>}</tr>
+      ))}</tbody></table></div> : <p className="empty-records">No academic years have been configured.</p>}
+    </div>
+  );
+
+  const divisionRows = (
+    <div className="record-list">
+      <h3>Existing Academic Compartments</h3>
+      {divisions.length ? <div className="table-scroll"><table className="records-table"><thead><tr><th>Code</th><th>Academic Compartment</th><th>Display Order</th>{canWriteAcademicSetup && <th>Action</th>}</tr></thead><tbody>{divisions.map((item) => (
+        <tr key={item.id}><td>{item.code}</td><td><strong>{item.name}</strong></td><td>{item.display_order}</td>{canWriteAcademicSetup && <td><EditButton onClick={() => setEditing({ kind: "division", id: item.id })} /></td>}</tr>
+      ))}</tbody></table></div> : <p className="empty-records">No academic compartments have been configured.</p>}
+    </div>
+  );
+
+  const gradeRows = (
+    <div className="record-list">
+      <h3>Existing Grades &amp; Compartment Mapping</h3>
+      {grades.length ? <div className="table-scroll"><table className="records-table"><thead><tr><th>Code</th><th>Grade</th><th>Institution Order</th><th>Compartment</th><th>Compartment Order</th>{canWriteAcademicSetup && <th>Action</th>}</tr></thead><tbody>{grades.map((item) => { const mapping = mappingForGrade(item.id); return (
+        <tr key={item.id}><td>{item.code}</td><td><strong>{item.display_name}</strong></td><td>{item.level_order}</td><td>{mapping ? divisionName(mapping.academic_division_id) : "—"}</td><td>{mapping?.sequence_no ?? "—"}</td>{canWriteAcademicSetup && <td><EditButton onClick={() => setEditing({ kind: "grade", id: item.id })} /></td>}</tr>
+      ); })}</tbody></table></div> : <p className="empty-records">No grades have been configured.</p>}
+    </div>
+  );
+
+  const classRows = (
+    <div className="record-list">
+      <h3>Existing Sections</h3>
+      {currentClasses.length ? <div className="table-scroll"><table className="records-table"><thead><tr><th>Grade</th><th>Section Code</th><th>Section Display Name</th>{canWriteAcademicSetup && <th>Action</th>}</tr></thead><tbody>{currentClasses.map((item) => (
+        <tr key={item.id}><td>{gradeName(item.grade_level_id)}</td><td>{item.section_code}</td><td><strong>{item.display_name}</strong></td>{canWriteAcademicSetup && <td><EditButton onClick={() => setEditing({ kind: "class", id: item.id })} /></td>}</tr>
+      ))}</tbody></table></div> : <p className="empty-records">No sections have been configured for the selected academic year.</p>}
+    </div>
+  );
 
   return (
     <main className="page-shell">
@@ -229,48 +289,45 @@ export default function HomePage() {
             <section className="panel setup-card scope-card"><div className="card-heading"><div><span className="card-step">1</span><h2>Institution Access</h2></div><span>{institutions.length} accessible</span></div><p>Your assigned institution is ready for academic setup.</p></section>
           )}
 
-          {isManagementAdmin ? (
-            <>
-              <section className="panel setup-card"><div className="card-heading"><div><span className="card-step">2</span><h2>Academic Years</h2></div><span>{years.length} created</span></div>{years.length ? <ul>{years.map((item) => <li key={item.id}><strong>{item.name}</strong> — {item.start_date} to {item.end_date}{item.is_current ? " · Current" : ""}</li>)}</ul> : <p>No academic years have been configured for this institution.</p>}</section>
-              <section className="panel setup-card"><div className="card-heading"><div><span className="card-step">3</span><h2>Academic Compartments</h2><InfoTip label="Academic Compartments">Academic Compartment represents a broad academic grouping used by an institution, such as <strong>Pre-Primary, Primary, Middle, Secondary, Senior Secondary, Junior or Senior</strong>. Institutions may create compartments according to their own academic structure.</InfoTip></div><span>{divisions.length} created</span></div>{divisions.length ? <ul>{divisions.map((item) => <li key={item.id}><strong>{item.name}</strong> ({item.code})</li>)}</ul> : <p>No academic compartments have been configured for this institution.</p>}</section>
-              <section className="panel setup-card"><div className="card-heading"><div><span className="card-step">4</span><h2>Grade &amp; Compartment Mapping</h2><InfoTip label="Grade and Compartment Mapping">A <strong>Grade</strong> is the student academic level. Schools may call it a <strong>Grade, Class or Standard</strong>. Map each grade to the appropriate Academic Compartment.</InfoTip></div><span>{grades.length} grades</span></div>{grades.length ? <ul>{grades.map((item) => <li key={item.id}><strong>{item.display_name}</strong> ({item.code})</li>)}</ul> : <p>No grades have been configured for this institution.</p>}</section>
-              <section className="panel setup-card"><div className="card-heading"><div><span className="card-step">5</span><h2>Grade &amp; Section Mapping</h2><InfoTip label="Grade and Section Mapping">A <strong>Section</strong> is a student group within a Grade/Class/Standard. Schools may call it a <strong>Section or Division</strong>, such as X A, X B, X BA or X BB.</InfoTip></div><span>{classes.length} created</span></div>{classes.length ? <ul>{classes.map((item) => <li key={item.id}><strong>{item.display_name}</strong> · Section {item.section_code}</li>)}</ul> : <p>No sections have been configured for this institution.</p>}</section>
-            </>
-          ) : (
-            <>
-              <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || !canWriteAcademicSetup}>
-                <div className="card-heading"><div><span className="card-step">2</span><h2>Academic Year</h2></div><span>{years.length} created</span></div>
-                <form onSubmit={(event) => { event.preventDefault(); if (!selectedInstitutionId || !canWriteAcademicSetup) return; const form = event.currentTarget; const data = formData(event); runAction(async () => { await apiRequest<AcademicYear>("/api/v1/academic-years", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, name: value(data, "name"), start_date: value(data, "start_date"), end_date: value(data, "end_date"), status: "active", is_current: Boolean(data.get("is_current")) }) }); await loadInstitutionContext(selectedInstitutionId); form.reset(); }, "Academic year created successfully"); }} className="form-grid">
-                  <label>Year Name<input name="name" placeholder="2026-2027" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label>Start Date<input name="start_date" type="date" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label>End Date<input name="end_date" type="date" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label className="checkbox-label"><input name="is_current" type="checkbox" disabled={!selectedInstitutionId || !canWriteAcademicSetup} /> Current academic year</label><button disabled={busy || !selectedInstitutionId || !canWriteAcademicSetup} className="primary-button">Add Academic Year</button>
-                </form>
-              </section>
+          <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || (!isManagementAdmin && !canWriteAcademicSetup)}>
+            <div className="card-heading"><div><span className="card-step">2</span><h2>Academic Year</h2></div><span>{years.length} created</span></div>
+            {!isManagementAdmin && <form onSubmit={(event) => { event.preventDefault(); if (!selectedInstitutionId || !canWriteAcademicSetup) return; const form = event.currentTarget; const data = formData(event); runAction(async () => { await apiRequest<AcademicYear>("/api/v1/academic-years", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, name: value(data, "name"), start_date: value(data, "start_date"), end_date: value(data, "end_date"), status: "active", is_current: Boolean(data.get("is_current")) }) }); await loadInstitutionContext(selectedInstitutionId); form.reset(); }, "Academic year created successfully"); }} className="form-grid">
+              <label>Year Name<input name="name" placeholder="2026-2027" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label>Start Date<input name="start_date" type="date" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label>End Date<input name="end_date" type="date" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label className="checkbox-label"><input name="is_current" type="checkbox" disabled={!selectedInstitutionId || !canWriteAcademicSetup} /> Current academic year</label><button disabled={busy || !selectedInstitutionId || !canWriteAcademicSetup} className="primary-button">Add Academic Year</button>
+            </form>}
+            {editing?.kind === "year" && (() => { const item = years.find((row) => row.id === editing.id); if (!item) return null; return <form className="edit-form form-grid" onSubmit={(event) => { event.preventDefault(); const data = formData(event); runAction(async () => { await apiRequest(`/api/v1/academic-years/${item.id}`, { method: "PATCH", body: JSON.stringify({ name: value(data, "name"), start_date: value(data, "start_date"), end_date: value(data, "end_date"), is_current: Boolean(data.get("is_current")) }) }); await loadInstitutionContext(selectedInstitutionId); setEditing(null); }, "Academic year updated successfully"); }}><label>Year Name<input name="name" defaultValue={item.name} required /></label><label>Start Date<input name="start_date" type="date" defaultValue={item.start_date} required /></label><label>End Date<input name="end_date" type="date" defaultValue={item.end_date} required /></label><label className="checkbox-label"><input name="is_current" type="checkbox" defaultChecked={item.is_current} /> Current academic year</label><div className="edit-actions"><button className="primary-button" disabled={busy}>Save Changes</button><button className="secondary-button" type="button" onClick={() => setEditing(null)}>Cancel</button></div></form>; })()}
+            {yearRows}
+          </section>
 
-              <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || !canWriteAcademicSetup}>
-                <div className="card-heading"><div><span className="card-step">3</span><h2>Academic Compartments</h2><InfoTip label="Academic Compartments">Academic Compartment represents a broad academic grouping used by an institution, such as <strong>Pre-Primary, Primary, Middle, Secondary, Senior Secondary, Junior or Senior</strong>. Institutions may create compartments according to their own academic structure.</InfoTip></div><span>{divisions.length} created</span></div>
-                <form onSubmit={(event) => { event.preventDefault(); if (!canWriteAcademicSetup) return; const form = event.currentTarget; const data = formData(event); runAction(async () => { await apiRequest<AcademicDivision>("/api/v1/academic-divisions", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, code: value(data, "code"), name: value(data, "compartment_name"), display_order: Number(value(data, "display_order")), is_active: true }) }); await loadInstitutionContext(selectedInstitutionId); form.reset(); }, "Academic compartment created successfully"); }} className="form-grid">
-                  <label>Compartment Code<input name="code" placeholder="SEC" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label>Compartment Name<input name="compartment_name" placeholder="Secondary" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label>Compartment Display Order<input name="display_order" type="number" min="1" defaultValue="1" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><button disabled={busy || !selectedInstitutionId || !canWriteAcademicSetup} className="primary-button">Add Compartment</button>
-                </form>
-              </section>
+          <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || (!isManagementAdmin && !canWriteAcademicSetup)}>
+            <div className="card-heading"><div><span className="card-step">3</span><h2>Academic Compartments</h2><InfoTip label="Academic Compartments">Academic Compartment represents a broad academic grouping used by an institution, such as <strong>Pre-Primary, Primary, Middle, Secondary, Senior Secondary, Junior or Senior</strong>. Institutions may create compartments according to their own academic structure.</InfoTip></div><span>{divisions.length} created</span></div>
+            {!isManagementAdmin && <form onSubmit={(event) => { event.preventDefault(); if (!canWriteAcademicSetup) return; const form = event.currentTarget; const data = formData(event); runAction(async () => { await apiRequest<AcademicDivision>("/api/v1/academic-divisions", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, code: value(data, "code"), name: value(data, "compartment_name"), display_order: Number(value(data, "display_order")), is_active: true }) }); await loadInstitutionContext(selectedInstitutionId); form.reset(); }, "Academic compartment created successfully"); }} className="form-grid">
+              <label>Compartment Code<input name="code" placeholder="SEC" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label>Compartment Name<input name="compartment_name" placeholder="Secondary" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><label>Compartment Display Order<input name="display_order" type="number" min="1" defaultValue="1" required disabled={!selectedInstitutionId || !canWriteAcademicSetup} /></label><button disabled={busy || !selectedInstitutionId || !canWriteAcademicSetup} className="primary-button">Add Compartment</button>
+            </form>}
+            {editing?.kind === "division" && (() => { const item = divisions.find((row) => row.id === editing.id); if (!item) return null; return <form className="edit-form form-grid" onSubmit={(event) => { event.preventDefault(); const data = formData(event); runAction(async () => { await apiRequest(`/api/v1/academic-divisions/${item.id}`, { method: "PATCH", body: JSON.stringify({ code: value(data, "code"), name: value(data, "name"), display_order: Number(value(data, "display_order")) }) }); await loadInstitutionContext(selectedInstitutionId); setEditing(null); }, "Academic compartment updated successfully"); }}><label>Compartment Code<input name="code" defaultValue={item.code} required /></label><label>Compartment Name<input name="name" defaultValue={item.name} required /></label><label>Compartment Display Order<input name="display_order" type="number" min="1" defaultValue={item.display_order} required /></label><div className="edit-actions"><button className="primary-button" disabled={busy}>Save Changes</button><button className="secondary-button" type="button" onClick={() => setEditing(null)}>Cancel</button></div></form>; })()}
+            {divisionRows}
+          </section>
 
-              <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || !selectedYearId || divisions.length === 0 || !canWriteAcademicSetup}>
-                <div className="card-heading"><div><span className="card-step">4</span><h2>Grade &amp; Compartment Mapping</h2><InfoTip label="Grade and Compartment Mapping">A <strong>Grade</strong> is the student academic level. Schools may use the terms <strong>Grade, Class or Standard</strong>. Map each grade to its Academic Compartment.</InfoTip></div><span>{grades.length} grades</span></div>
-                <form onSubmit={(event) => { event.preventDefault(); if (!canWriteAcademicSetup) return; const form = event.currentTarget; const data = formData(event); runAction(async () => { const grade = await apiRequest<GradeLevel>("/api/v1/grade-levels", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, code: value(data, "grade_code"), display_name: value(data, "grade_name"), level_order: Number(value(data, "level_order")), is_active: true }) }); await apiRequest("/api/v1/academic-division-grade-levels", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, academic_year_id: selectedYearId, academic_division_id: value(data, "division_id"), grade_level_id: grade.id, sequence_no: Number(value(data, "sequence_no")) || null }) }); await loadInstitutionContext(selectedInstitutionId); form.reset(); }, "Grade created and mapped successfully"); }} className="form-grid">
-                  <label>Grade Code<input name="grade_code" placeholder="X" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><label>Grade Name<input name="grade_name" placeholder="Class X" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><label>Display Order in the Entire Institution<input name="level_order" type="number" min="1" defaultValue="1" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><label>Academic Compartment<select name="division_id" required disabled={!selectedYearId || divisions.length === 0 || !canWriteAcademicSetup}><option value="">Select compartment</option>{divisions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Display Order in the Compartment<input name="sequence_no" type="number" min="1" defaultValue="1" disabled={!selectedYearId || !canWriteAcademicSetup} /></label><button disabled={busy || !selectedYearId || divisions.length === 0 || !canWriteAcademicSetup} className="primary-button">Add Grade</button>
-                </form>
-              </section>
+          <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || !selectedYearId || divisions.length === 0 || (!isManagementAdmin && !canWriteAcademicSetup)}>
+            <div className="card-heading"><div><span className="card-step">4</span><h2>Grade &amp; Compartment Mapping</h2><InfoTip label="Grade and Compartment Mapping">A <strong>Grade</strong> is the student academic level. Schools may use the terms <strong>Grade, Class or Standard</strong>. Map each grade to its Academic Compartment.</InfoTip></div><span>{grades.length} grades</span></div>
+            {!isManagementAdmin && <form onSubmit={(event) => { event.preventDefault(); if (!canWriteAcademicSetup) return; const form = event.currentTarget; const data = formData(event); runAction(async () => { const grade = await apiRequest<GradeLevel>("/api/v1/grade-levels", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, code: value(data, "grade_code"), display_name: value(data, "grade_name"), level_order: Number(value(data, "level_order")), is_active: true }) }); await apiRequest("/api/v1/academic-division-grade-levels", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, academic_year_id: selectedYearId, academic_division_id: value(data, "division_id"), grade_level_id: grade.id, sequence_no: Number(value(data, "sequence_no")) || null }) }); await loadInstitutionContext(selectedInstitutionId); form.reset(); }, "Grade created and mapped successfully"); }} className="form-grid">
+              <label>Grade Code<input name="grade_code" placeholder="X" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><label>Grade Name<input name="grade_name" placeholder="Class X" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><label>Display Order in the Entire Institution<input name="level_order" type="number" min="1" defaultValue="1" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><label>Academic Compartment<select name="division_id" required disabled={!selectedYearId || divisions.length === 0 || !canWriteAcademicSetup}><option value="">Select compartment</option>{divisions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Display Order in the Compartment<input name="sequence_no" type="number" min="1" defaultValue="1" disabled={!selectedYearId || !canWriteAcademicSetup} /></label><button disabled={busy || !selectedYearId || divisions.length === 0 || !canWriteAcademicSetup} className="primary-button">Add Grade</button>
+            </form>}
+            {editing?.kind === "grade" && (() => { const item = grades.find((row) => row.id === editing.id); const mapping = item ? mappingForGrade(item.id) : undefined; if (!item) return null; return <form className="edit-form form-grid" onSubmit={(event) => { event.preventDefault(); const data = formData(event); runAction(async () => { await apiRequest(`/api/v1/grade-levels/${item.id}`, { method: "PATCH", body: JSON.stringify({ code: value(data, "code"), display_name: value(data, "name"), level_order: Number(value(data, "level_order")) }) }); const newDivisionId = value(data, "division_id"); const newSequence = Number(value(data, "sequence_no")) || null; if (mapping && (mapping.academic_division_id !== newDivisionId || mapping.sequence_no !== newSequence)) { await apiRequest(`/api/v1/academic-division-grade-levels/${mapping.id}`, { method: "DELETE" }); await apiRequest("/api/v1/academic-division-grade-levels", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, academic_year_id: selectedYearId, academic_division_id: newDivisionId, grade_level_id: item.id, sequence_no: newSequence }) }); } else if (!mapping && newDivisionId) { await apiRequest("/api/v1/academic-division-grade-levels", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, academic_year_id: selectedYearId, academic_division_id: newDivisionId, grade_level_id: item.id, sequence_no: newSequence }) }); } await loadInstitutionContext(selectedInstitutionId); setEditing(null); }, "Grade and compartment mapping updated successfully"); }}><label>Grade Code<input name="code" defaultValue={item.code} required /></label><label>Grade Name<input name="name" defaultValue={item.display_name} required /></label><label>Display Order in the Entire Institution<input name="level_order" type="number" min="1" defaultValue={item.level_order} required /></label><label>Academic Compartment<select name="division_id" defaultValue={mapping?.academic_division_id ?? ""} required><option value="">Select compartment</option>{divisions.map((division) => <option key={division.id} value={division.id}>{division.name}</option>)}</select></label><label>Display Order in the Compartment<input name="sequence_no" type="number" min="1" defaultValue={mapping?.sequence_no ?? 1} required /></label><div className="edit-actions"><button className="primary-button" disabled={busy}>Save Changes</button><button className="secondary-button" type="button" onClick={() => setEditing(null)}>Cancel</button></div></form>; })()}
+            {gradeRows}
+          </section>
 
-              <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || !selectedYearId || grades.length === 0 || !canWriteAcademicSetup}>
-                <div className="card-heading"><div><span className="card-step">5</span><h2>Grade &amp; Section Mapping</h2><InfoTip label="Grade and Section Mapping">A <strong>Section</strong> is a student group within a Grade/Class/Standard. Schools may use the terms <strong>Section or Division</strong>. Examples include X A, X B, X BA or X BB.</InfoTip></div><span>{classes.length} created</span></div>
-                <form onSubmit={(event) => { event.preventDefault(); if (!canWriteAcademicSetup) return; const form = event.currentTarget; const data = formData(event); runAction(async () => { await apiRequest<ClassGroup>("/api/v1/class-groups", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, academic_year_id: selectedYearId, grade_level_id: value(data, "grade_level_id"), section_code: value(data, "section_code"), display_name: value(data, "section_name"), status: "active" }) }); await loadInstitutionContext(selectedInstitutionId); form.reset(); }, "Section created successfully"); }} className="form-grid">
-                  <label>Grade<select name="grade_level_id" required disabled={!selectedYearId || grades.length === 0 || !canWriteAcademicSetup}><option value="">Select grade</option>{grades.map((item) => <option value={item.id} key={item.id}>{item.display_name}</option>)}</select></label><label>Section Code<input name="section_code" placeholder="A" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><label>Section Display Name<input name="section_name" placeholder="Class X - A" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><button disabled={busy || !selectedYearId || grades.length === 0 || !canWriteAcademicSetup} className="primary-button">Create Section</button>
-                </form>
-              </section>
-            </>
-          )}
+          <section className="panel setup-card muted-when-disabled" data-disabled={!selectedInstitutionId || !selectedYearId || grades.length === 0 || (!isManagementAdmin && !canWriteAcademicSetup)}>
+            <div className="card-heading"><div><span className="card-step">5</span><h2>Grade &amp; Section Mapping</h2><InfoTip label="Grade and Section Mapping">A <strong>Section</strong> is a student group within a Grade/Class/Standard. Schools may use the terms <strong>Section or Division</strong>. Examples include X A, X B, X BA or X BB.</InfoTip></div><span>{currentClasses.length} created</span></div>
+            {!isManagementAdmin && <form onSubmit={(event) => { event.preventDefault(); if (!canWriteAcademicSetup) return; const form = event.currentTarget; const data = formData(event); runAction(async () => { await apiRequest<ClassGroup>("/api/v1/class-groups", { method: "POST", body: JSON.stringify({ institution_id: selectedInstitutionId, academic_year_id: selectedYearId, grade_level_id: value(data, "grade_level_id"), section_code: value(data, "section_code"), display_name: value(data, "section_name"), status: "active" }) }); await loadInstitutionContext(selectedInstitutionId); form.reset(); }, "Section created successfully"); }} className="form-grid">
+              <label>Grade<select name="grade_level_id" required disabled={!selectedYearId || grades.length === 0 || !canWriteAcademicSetup}><option value="">Select grade</option>{grades.map((item) => <option value={item.id} key={item.id}>{item.display_name}</option>)}</select></label><label>Section Code<input name="section_code" placeholder="A" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><label>Section Display Name<input name="section_name" placeholder="Class X - A" required disabled={!selectedYearId || !canWriteAcademicSetup} /></label><button disabled={busy || !selectedYearId || grades.length === 0 || !canWriteAcademicSetup} className="primary-button">Create Section</button>
+            </form>}
+            {editing?.kind === "class" && (() => { const item = classes.find((row) => row.id === editing.id); if (!item) return null; return <form className="edit-form form-grid" onSubmit={(event) => { event.preventDefault(); const data = formData(event); runAction(async () => { await apiRequest(`/api/v1/class-groups/${item.id}`, { method: "PATCH", body: JSON.stringify({ section_code: value(data, "section_code"), display_name: value(data, "display_name") }) }); await loadInstitutionContext(selectedInstitutionId); setEditing(null); }, "Section updated successfully"); }}><label>Grade<input value={gradeName(item.grade_level_id)} disabled readOnly /></label><label>Section Code<input name="section_code" defaultValue={item.section_code} required /></label><label>Section Display Name<input name="display_name" defaultValue={item.display_name} required /></label><div className="edit-actions"><button className="primary-button" disabled={busy}>Save Changes</button><button className="secondary-button" type="button" onClick={() => setEditing(null)}>Cancel</button></div></form>; })()}
+            {classRows}
+          </section>
         </div>
       </section>
 
-      <section className="summary-grid"><article><strong>{years.length}</strong><span>Academic Years</span></article><article><strong>{divisions.length}</strong><span>Compartments</span></article><article><strong>{grades.length}</strong><span>Grades</span></article><article><strong>{classes.length}</strong><span>Sections</span></article></section>
+      <section className="summary-grid"><article><strong>{years.length}</strong><span>Academic Years</span></article><article><strong>{divisions.length}</strong><span>Compartments</span></article><article><strong>{grades.length}</strong><span>Grades</span></article><article><strong>{currentClasses.length}</strong><span>Sections</span></article></section>
     </main>
   );
 }
