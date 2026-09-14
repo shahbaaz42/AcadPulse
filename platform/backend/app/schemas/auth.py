@@ -51,3 +51,24 @@ class AdminUserRead(BaseModel):
     organization_id: UUID | None = None
     institution_id: UUID | None = None
     academic_division_ids: list[UUID] = Field(default_factory=list)
+
+
+class PrincipalManagedUserRead(BaseModel):
+    id: UUID
+    email: str
+    display_name: str
+    status: str
+    role_code: str
+    role_name: str
+    institution_id: UUID
+    academic_division_ids: list[UUID] = Field(default_factory=list)
+
+
+class PrincipalManagedUserUpdate(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    display_name: str = Field(min_length=1, max_length=255)
+    role_code: str
+    institution_id: UUID
+    academic_division_ids: list[UUID] = Field(default_factory=list)
+    status: str = Field(default="active", pattern="^(active|inactive)$")
+    password: str | None = Field(default=None, min_length=12, max_length=256)
