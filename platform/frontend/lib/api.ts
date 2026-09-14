@@ -110,6 +110,17 @@ export type AdminUserProvisioned = {
   academic_division_ids: string[];
 };
 
+export type PrincipalManagedUser = {
+  id: string;
+  email: string;
+  display_name: string;
+  status: "active" | "inactive";
+  role_code: "SCHOOL_ADMIN" | "COMPARTMENT_HEAD";
+  role_name: string;
+  institution_id: string;
+  academic_division_ids: string[];
+};
+
 export type AcademicYear = {
   id: string;
   institution_id: string;
