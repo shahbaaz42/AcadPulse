@@ -134,6 +134,15 @@ export type GradeLevel = {
   level_order: number;
 };
 
+export type AcademicDivisionGradeLevel = {
+  id: string;
+  institution_id: string;
+  academic_year_id: string;
+  academic_division_id: string;
+  grade_level_id: string;
+  sequence_no: number | null;
+};
+
 export type ClassGroup = {
   id: string;
   institution_id: string;
