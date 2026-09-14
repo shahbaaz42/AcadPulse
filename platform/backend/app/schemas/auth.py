@@ -20,6 +20,7 @@ class AccessAssignmentRead(BaseModel):
     scope_type: str
     organization_id: UUID | None = None
     institution_id: UUID | None = None
+    academic_division_id: UUID | None = None
 
 
 class CurrentUserRead(BaseModel):
@@ -37,6 +38,7 @@ class AdminUserCreate(BaseModel):
     role_code: str
     organization_id: UUID | None = None
     institution_id: UUID | None = None
+    academic_division_ids: list[UUID] = Field(default_factory=list)
 
 
 class AdminUserRead(BaseModel):
@@ -48,3 +50,4 @@ class AdminUserRead(BaseModel):
     scope_type: str
     organization_id: UUID | None = None
     institution_id: UUID | None = None
+    academic_division_ids: list[UUID] = Field(default_factory=list)
