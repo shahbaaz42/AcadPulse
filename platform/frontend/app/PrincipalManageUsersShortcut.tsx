@@ -32,8 +32,14 @@ export default function PrincipalManageUsersShortcut() {
 
   return (
     <Link
-      className="secondary-button principal-manage-users-shortcut"
+      className="secondary-button"
       href="/admin-users"
+      style={{
+        position: "fixed",
+        top: 18,
+        right: 118,
+        zIndex: 100,
+      }}
     >
       Manage users
     </Link>
