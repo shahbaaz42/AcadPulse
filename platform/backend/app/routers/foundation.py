@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -85,6 +85,166 @@ def _scope_to_accessible_institutions(stmt, model, access: AccessContext, db: Se
     if not allowed:
         return stmt.where(False)
     return stmt.where(model.institution_id.in_(allowed))
+
+
+def _broad_institution_ids(access: AccessContext, db: Session) -> set[UUID] | None:
+    """Return institutions visible without an Academic Compartment restriction."""
+    if access.is_platform_admin:
+        return None
+
+    allowed = {
+        assignment.institution_id
+        for assignment in access.assignments
+        if assignment.scope_type == "institution" and assignment.institution_id is not None
+    }
+    if access.organization_ids:
+        allowed.update(
+            db.scalars(
+                select(Institution.id).where(Institution.organization_id.in_(access.organization_ids))
+            ).all()
+        )
+    return allowed
+
+
+def _has_broad_institution_access(
+    institution_id: UUID,
+    access: AccessContext,
+    db: Session,
+) -> bool:
+    broad = _broad_institution_ids(access, db)
+    return broad is None or institution_id in broad
+
+
+def _scope_academic_divisions(stmt, access: AccessContext, db: Session):
+    broad = _broad_institution_ids(access, db)
+    if broad is None:
+        return stmt
+
+    conditions = []
+    if broad:
+        conditions.append(AcademicDivision.institution_id.in_(broad))
+    if access.academic_compartment_ids:
+        conditions.append(AcademicDivision.id.in_(access.academic_compartment_ids))
+
+    if not conditions:
+        return stmt.where(False)
+    return stmt.where(or_(*conditions))
+
+
+def _scope_grade_levels(stmt, access: AccessContext, db: Session):
+    broad = _broad_institution_ids(access, db)
+    if broad is None:
+        return stmt
+
+    conditions = []
+    if broad:
+        conditions.append(GradeLevel.institution_id.in_(broad))
+    if access.academic_compartment_ids:
+        scoped_grade_ids = select(AcademicDivisionGradeLevel.grade_level_id).where(
+            AcademicDivisionGradeLevel.academic_division_id.in_(access.academic_compartment_ids)
+        )
+        conditions.append(GradeLevel.id.in_(scoped_grade_ids))
+
+    if not conditions:
+        return stmt.where(False)
+    return stmt.where(or_(*conditions))
+
+
+def _scope_division_grade_mappings(stmt, access: AccessContext, db: Session):
+    broad = _broad_institution_ids(access, db)
+    if broad is None:
+        return stmt
+
+    conditions = []
+    if broad:
+        conditions.append(AcademicDivisionGradeLevel.institution_id.in_(broad))
+    if access.academic_compartment_ids:
+        conditions.append(
+            AcademicDivisionGradeLevel.academic_division_id.in_(access.academic_compartment_ids)
+        )
+
+    if not conditions:
+        return stmt.where(False)
+    return stmt.where(or_(*conditions))
+
+
+def _scope_class_groups(stmt, access: AccessContext, db: Session):
+    broad = _broad_institution_ids(access, db)
+    if broad is None:
+        return stmt
+
+    conditions = []
+    if broad:
+        conditions.append(ClassGroup.institution_id.in_(broad))
+    if access.academic_compartment_ids:
+        compartment_mapping_exists = exists().where(
+            AcademicDivisionGradeLevel.institution_id == ClassGroup.institution_id,
+            AcademicDivisionGradeLevel.academic_year_id == ClassGroup.academic_year_id,
+            AcademicDivisionGradeLevel.grade_level_id == ClassGroup.grade_level_id,
+            AcademicDivisionGradeLevel.academic_division_id.in_(access.academic_compartment_ids),
+        )
+        conditions.append(compartment_mapping_exists)
+
+    if not conditions:
+        return stmt.where(False)
+    return stmt.where(or_(*conditions))
+
+
+def _require_academic_division_read(
+    item: AcademicDivision,
+    access: AccessContext,
+    db: Session,
+) -> None:
+    require_institution_access(item.institution_id, access, db)
+    if _has_broad_institution_access(item.institution_id, access, db):
+        return
+    if item.id not in access.academic_compartment_ids:
+        raise HTTPException(status_code=403, detail="Resource is outside your assigned academic scope")
+
+
+def _require_grade_level_read(
+    item: GradeLevel,
+    access: AccessContext,
+    db: Session,
+) -> None:
+    require_institution_access(item.institution_id, access, db)
+    if _has_broad_institution_access(item.institution_id, access, db):
+        return
+
+    visible_mapping = db.scalar(
+        select(AcademicDivisionGradeLevel.id)
+        .where(
+            AcademicDivisionGradeLevel.institution_id == item.institution_id,
+            AcademicDivisionGradeLevel.grade_level_id == item.id,
+            AcademicDivisionGradeLevel.academic_division_id.in_(access.academic_compartment_ids),
+        )
+        .limit(1)
+    )
+    if visible_mapping is None:
+        raise HTTPException(status_code=403, detail="Resource is outside your assigned academic scope")
+
+
+def _require_class_group_read(
+    item: ClassGroup,
+    access: AccessContext,
+    db: Session,
+) -> None:
+    require_institution_access(item.institution_id, access, db)
+    if _has_broad_institution_access(item.institution_id, access, db):
+        return
+
+    visible_mapping = db.scalar(
+        select(AcademicDivisionGradeLevel.id)
+        .where(
+            AcademicDivisionGradeLevel.institution_id == item.institution_id,
+            AcademicDivisionGradeLevel.academic_year_id == item.academic_year_id,
+            AcademicDivisionGradeLevel.grade_level_id == item.grade_level_id,
+            AcademicDivisionGradeLevel.academic_division_id.in_(access.academic_compartment_ids),
+        )
+        .limit(1)
+    )
+    if visible_mapping is None:
+        raise HTTPException(status_code=403, detail="Resource is outside your assigned academic scope")
 
 
 @router.post("/institutions", response_model=InstitutionRead, status_code=status.HTTP_201_CREATED)
@@ -253,6 +413,7 @@ def list_academic_divisions(
         stmt = stmt.where(AcademicDivision.institution_id == institution_id)
     else:
         stmt = _scope_to_accessible_institutions(stmt, AcademicDivision, access, db)
+    stmt = _scope_academic_divisions(stmt, access, db)
     return db.scalars(stmt.order_by(AcademicDivision.display_order, AcademicDivision.name)).all()
 
 
@@ -263,7 +424,7 @@ def get_academic_division(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, AcademicDivision, item_id, "Academic division")
-    _require_record_access(item, access, db)
+    _require_academic_division_read(item, access, db)
     return item
 
 
@@ -322,6 +483,7 @@ def list_grade_levels(
         stmt = stmt.where(GradeLevel.institution_id == institution_id)
     else:
         stmt = _scope_to_accessible_institutions(stmt, GradeLevel, access, db)
+    stmt = _scope_grade_levels(stmt, access, db)
     return db.scalars(stmt.order_by(GradeLevel.level_order, GradeLevel.display_name)).all()
 
 
@@ -332,7 +494,7 @@ def get_grade_level(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, GradeLevel, item_id, "Grade level")
-    _require_record_access(item, access, db)
+    _require_grade_level_read(item, access, db)
     return item
 
 
@@ -400,6 +562,7 @@ def list_division_grade_mappings(
         stmt = _scope_to_accessible_institutions(stmt, AcademicDivisionGradeLevel, access, db)
     if academic_year_id:
         stmt = stmt.where(AcademicDivisionGradeLevel.academic_year_id == academic_year_id)
+    stmt = _scope_division_grade_mappings(stmt, access, db)
     return db.scalars(stmt.order_by(AcademicDivisionGradeLevel.sequence_no)).all()
 
 
@@ -462,6 +625,7 @@ def list_class_groups(
         stmt = stmt.where(ClassGroup.academic_year_id == academic_year_id)
     if grade_level_id:
         stmt = stmt.where(ClassGroup.grade_level_id == grade_level_id)
+    stmt = _scope_class_groups(stmt, access, db)
     return db.scalars(stmt.order_by(ClassGroup.display_name)).all()
 
 
@@ -472,7 +636,7 @@ def get_class_group(
     access: AccessContext = Depends(get_current_access),
 ):
     item = _get_or_404(db, ClassGroup, item_id, "Class group")
-    _require_record_access(item, access, db)
+    _require_class_group_read(item, access, db)
     return item
 
 
