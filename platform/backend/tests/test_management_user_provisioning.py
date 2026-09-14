@@ -164,13 +164,10 @@ def test_management_cannot_provision_other_roles() -> None:
         assert response.json()["detail"] == "Management / Group Admin may provision Principal accounts only"
 
 
-def test_principal_cannot_use_user_provisioning_endpoint() -> None:
+def test_principal_cannot_use_general_user_provisioning_endpoint() -> None:
     platform_headers = _platform_headers()
     _, institution = _organization_with_school(platform_headers, "PRNOADMIN")
-    principal_email, principal_password = _create_user(
-        "PRINCIPAL",
-        institution_id=UUID(institution["id"]),
-    )
+    principal_email, principal_password = _create_user("PRINCIPAL", institution_id=UUID(institution["id"]))
     principal_headers = _login(principal_email, principal_password)
 
     response = client.post(
@@ -186,3 +183,70 @@ def test_principal_cannot_use_user_provisioning_endpoint() -> None:
         },
     )
     assert response.status_code == 403
+
+
+def test_principal_can_provision_school_admin_for_own_institution() -> None:
+    platform_headers = _platform_headers()
+    _, institution = _organization_with_school(platform_headers, "PRADMIN")
+    principal_email, principal_password = _create_user("PRINCIPAL", institution_id=UUID(institution["id"]))
+    principal_headers = _login(principal_email, principal_password)
+
+    school_admin_email = f"schooladmin-{uuid4().hex[:8]}@example.com"
+    response = client.post(
+        "/api/v1/principal/school-admins",
+        headers=principal_headers,
+        json={
+            "email": school_admin_email,
+            "display_name": "School Admin",
+            "password": "SchoolAdmin-Test-2026!",
+            "role_code": "SCHOOL_ADMIN",
+            "organization_id": None,
+            "institution_id": institution["id"],
+        },
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["role_code"] == "SCHOOL_ADMIN"
+    assert response.json()["institution_id"] == institution["id"]
+
+    admin_headers = _login(school_admin_email, "SchoolAdmin-Test-2026!")
+    institutions = client.get("/api/v1/institutions", headers=admin_headers)
+    assert institutions.status_code == 200, institutions.text
+    assert [item["id"] for item in institutions.json()] == [institution["id"]]
+
+
+def test_principal_cannot_provision_school_admin_outside_scope_or_other_roles() -> None:
+    platform_headers = _platform_headers()
+    _, institution_a = _organization_with_school(platform_headers, "PRA")
+    _, institution_b = _organization_with_school(platform_headers, "PRB")
+    principal_email, principal_password = _create_user("PRINCIPAL", institution_id=UUID(institution_a["id"]))
+    principal_headers = _login(principal_email, principal_password)
+
+    outside_scope = client.post(
+        "/api/v1/principal/school-admins",
+        headers=principal_headers,
+        json={
+            "email": f"outside-admin-{uuid4().hex[:8]}@example.com",
+            "display_name": "Outside School Admin",
+            "password": "SchoolAdmin-Test-2026!",
+            "role_code": "SCHOOL_ADMIN",
+            "organization_id": None,
+            "institution_id": institution_b["id"],
+        },
+    )
+    assert outside_scope.status_code == 403
+    assert "your institution" in outside_scope.json()["detail"]
+
+    wrong_role = client.post(
+        "/api/v1/principal/school-admins",
+        headers=principal_headers,
+        json={
+            "email": f"principal-{uuid4().hex[:8]}@example.com",
+            "display_name": "Another Principal",
+            "password": "Principal-Test-2026!",
+            "role_code": "PRINCIPAL",
+            "organization_id": None,
+            "institution_id": institution_a["id"],
+        },
+    )
+    assert wrong_role.status_code == 403
+    assert wrong_role.json()["detail"] == "Principal may provision School Admin accounts only"
