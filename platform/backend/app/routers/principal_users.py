@@ -42,7 +42,7 @@ def _prepare_user(payload: AdminUserCreate, db: Session, allowed_institutions: s
 def create_or_reset_school_admin(payload: AdminUserCreate, db: Session = Depends(get_db), access: AccessContext = Depends(get_current_access)) -> AdminUserRead:
     allowed = _principal_institutions(access)
     if not allowed: raise HTTPException(status_code=403, detail="Principal institution access required")
-    if payload.role_code.strip().upper() != "SCHOOL_ADMIN": raise HTTPException(status_code=403, detail="This endpoint provisions School Admin accounts only")
+    if payload.role_code.strip().upper() != "SCHOOL_ADMIN": raise HTTPException(status_code=403, detail="Principal may provision School Admin accounts only")
     institution_id = payload.institution_id or (next(iter(allowed)) if len(allowed) == 1 else None)
     if institution_id is None: raise HTTPException(status_code=422, detail="Select an institution")
     if institution_id not in allowed or db.get(Institution, institution_id) is None: raise HTTPException(status_code=403, detail="School Admin can only be assigned to your institution")
