@@ -129,11 +129,6 @@ class AcademicDivisionGradeLevelCreate(BaseModel):
     sequence_no: int | None = Field(default=None, ge=1)
 
 
-class AcademicDivisionGradeLevelUpdate(BaseModel):
-    academic_division_id: UUID | None = None
-    sequence_no: int | None = Field(default=None, ge=1)
-
-
 class AcademicDivisionGradeLevelRead(ORMModel):
     id: UUID
     institution_id: UUID
@@ -156,7 +151,6 @@ class ClassGroupCreate(BaseModel):
 
 
 class ClassGroupUpdate(BaseModel):
-    grade_level_id: UUID | None = None
     section_code: str | None = Field(default=None, min_length=1, max_length=50)
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     capacity: int | None = Field(default=None, ge=1)
