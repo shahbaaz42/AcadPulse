@@ -1,6 +1,7 @@
 import "./globals.css";
 
 import PrincipalManageUsersShortcut from "./PrincipalManageUsersShortcut";
+import StaffProfilesShortcut from "./StaffProfilesShortcut";
 
 export const metadata = {
   title: "AcadPulse",
@@ -12,6 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <PrincipalManageUsersShortcut />
+        <StaffProfilesShortcut />
         {children}
       </body>
     </html>
