@@ -211,10 +211,9 @@ def create_staff_profile(
         is_active=True,
     )
     db.add(item)
-    db.flush()
-    _replace_divisions(db, item.id, division_ids)
-
     try:
+        db.flush()
+        _replace_divisions(db, item.id, division_ids)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
