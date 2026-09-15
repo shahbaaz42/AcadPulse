@@ -165,3 +165,16 @@ export type ClassGroup = {
   display_name: string;
   capacity: number | null;
 };
+
+export type StaffProfile = {
+  id: string;
+  institution_id: string;
+  user_id: string | null;
+  employee_code: string | null;
+  full_name: string;
+  staff_type: "TEACHING" | "NON_TEACHING";
+  is_active: boolean;
+  academic_division_ids: string[];
+  created_at: string;
+  updated_at: string;
+};
