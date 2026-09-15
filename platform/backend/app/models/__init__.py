@@ -15,6 +15,7 @@ from .foundation import (
     Institution,
 )
 from .organization import Organization
+from .staff import StaffProfile, StaffProfileAcademicDivision
 
 __all__ = [
     "Organization",
@@ -29,6 +30,8 @@ __all__ = [
     "StaffResponsibilitySubject",
     "StaffResponsibilityGrade",
     "StaffResponsibilityClassGroup",
+    "StaffProfile",
+    "StaffProfileAcademicDivision",
     "UserAccount",
     "Role",
     "UserRoleAssignment",
