@@ -49,6 +49,11 @@ class StaffAcademicResponsibility(AcademicResponsibilityTimestampMixin, Base):
     )
     institution_id: Mapped[UUID] = mapped_column(ForeignKey("institutions.id", ondelete="RESTRICT"), nullable=False, index=True)
     academic_year_id: Mapped[UUID] = mapped_column(ForeignKey("academic_years.id", ondelete="RESTRICT"), nullable=False, index=True)
+    # Nullable only for pre-compartment legacy rows. New UI-created assignments
+    # always carry the Academic Compartment in which the responsibility applies.
+    academic_division_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("academic_divisions.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     responsibility_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     display_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

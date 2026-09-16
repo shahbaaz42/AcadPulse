@@ -15,8 +15,15 @@ from ..models.academic_responsibility import (
     StaffResponsibilitySubject,
     Subject,
 )
-from ..models.foundation import AcademicYear, ClassGroup, GradeLevel, Institution
-from ..models.staff import StaffProfile
+from ..models.foundation import (
+    AcademicDivision,
+    AcademicDivisionGradeLevel,
+    AcademicYear,
+    ClassGroup,
+    GradeLevel,
+    Institution,
+)
+from ..models.staff import StaffProfile, StaffProfileAcademicDivision
 from ..schemas.academic_responsibility import (
     StaffAcademicResponsibilityCreate,
     StaffAcademicResponsibilityRead,
@@ -34,20 +41,49 @@ RESPONSIBILITY_TYPES = {
 }
 
 
-def _require_responsibility_admin(institution_id: UUID, access: AccessContext, db: Session) -> None:
-    require_institution_access(institution_id, access, db)
-    if access.is_platform_admin:
-        return
-    if any(
+def _is_institution_responsibility_admin(institution_id: UUID, access: AccessContext) -> bool:
+    return access.is_platform_admin or any(
         assignment.role_code in {"PRINCIPAL", "SCHOOL_ADMIN"}
         and assignment.scope_type == "institution"
         and assignment.institution_id == institution_id
         for assignment in access.assignments
-    ):
+    )
+
+
+def _require_subject_admin(institution_id: UUID, access: AccessContext, db: Session) -> None:
+    require_institution_access(institution_id, access, db)
+    if _is_institution_responsibility_admin(institution_id, access):
         return
     raise HTTPException(
         status_code=403,
-        detail="Academic responsibility management requires Principal or School Admin access",
+        detail="Canonical Subject management requires Principal or School Admin access",
+    )
+
+
+def _responsibility_manager_scope(
+    institution_id: UUID,
+    access: AccessContext,
+    db: Session,
+) -> set[UUID] | None:
+    """Return None for institution-wide responsibility management, else allowed compartments."""
+    require_institution_access(institution_id, access, db)
+    if _is_institution_responsibility_admin(institution_id, access):
+        return None
+
+    scoped = {
+        assignment.academic_division_id
+        for assignment in access.assignments
+        if assignment.role_code == "COMPARTMENT_HEAD"
+        and assignment.scope_type == "academic_compartment"
+        and assignment.institution_id == institution_id
+        and assignment.academic_division_id is not None
+    }
+    if scoped:
+        return scoped
+
+    raise HTTPException(
+        status_code=403,
+        detail="Academic responsibility management requires Principal or School Admin access, or scoped Compartment Head access",
     )
 
 
@@ -124,6 +160,67 @@ def _load_targets(
             )
 
 
+def _validate_compartment_scope(
+    db: Session,
+    *,
+    institution_id: UUID,
+    academic_year_id: UUID,
+    academic_division_id: UUID | None,
+    profile: StaffProfile,
+    grade_level_ids: list[UUID],
+    class_group_ids: list[UUID],
+    manager_scope: set[UUID] | None,
+) -> None:
+    if academic_division_id is None:
+        if manager_scope is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Academic responsibility management requires Principal or School Admin access when no Academic Compartment is supplied",
+            )
+        return
+
+    division = db.get(AcademicDivision, academic_division_id)
+    if division is None or division.institution_id != institution_id or not division.is_active:
+        raise HTTPException(status_code=422, detail="Academic Compartment must belong to the selected institution")
+
+    if manager_scope is not None and academic_division_id not in manager_scope:
+        raise HTTPException(status_code=403, detail="Academic Compartment is outside your assigned access scope")
+
+    placement = db.scalar(
+        select(StaffProfileAcademicDivision.id).where(
+            StaffProfileAcademicDivision.staff_profile_id == profile.id,
+            StaffProfileAcademicDivision.academic_division_id == academic_division_id,
+        )
+    )
+    if placement is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Staff Profile must be placed in the selected Academic Compartment",
+        )
+
+    target_grade_ids = set(grade_level_ids)
+    if class_group_ids:
+        groups = db.scalars(select(ClassGroup).where(ClassGroup.id.in_(class_group_ids))).all()
+        target_grade_ids.update(item.grade_level_id for item in groups)
+
+    if target_grade_ids:
+        mapped_grade_ids = set(
+            db.scalars(
+                select(AcademicDivisionGradeLevel.grade_level_id).where(
+                    AcademicDivisionGradeLevel.institution_id == institution_id,
+                    AcademicDivisionGradeLevel.academic_year_id == academic_year_id,
+                    AcademicDivisionGradeLevel.academic_division_id == academic_division_id,
+                    AcademicDivisionGradeLevel.grade_level_id.in_(target_grade_ids),
+                )
+            ).all()
+        )
+        if mapped_grade_ids != target_grade_ids:
+            raise HTTPException(
+                status_code=422,
+                detail="All selected grades and sections must belong to the selected Academic Compartment for this academic year",
+            )
+
+
 def _responsibility_read(db: Session, item: StaffAcademicResponsibility) -> StaffAcademicResponsibilityRead:
     profile = db.get(StaffProfile, item.staff_profile_id) if item.staff_profile_id is not None else None
     legacy_user = db.get(UserAccount, item.user_id) if profile is None and item.user_id is not None else None
@@ -153,6 +250,7 @@ def _responsibility_read(db: Session, item: StaffAcademicResponsibility) -> Staf
         linked_user_id=profile.user_id if profile is not None else item.user_id,
         institution_id=item.institution_id,
         academic_year_id=item.academic_year_id,
+        academic_division_id=item.academic_division_id,
         responsibility_type=item.responsibility_type,
         display_title=item.display_title,
         is_active=item.is_active,
@@ -170,7 +268,7 @@ def create_subject(
     db: Session = Depends(get_db),
     access: AccessContext = Depends(get_current_access),
 ) -> Subject:
-    _require_responsibility_admin(payload.institution_id, access, db)
+    _require_subject_admin(payload.institution_id, access, db)
     if db.get(Institution, payload.institution_id) is None:
         raise HTTPException(status_code=404, detail="Institution not found")
 
@@ -215,7 +313,7 @@ def create_staff_responsibility(
     db: Session = Depends(get_db),
     access: AccessContext = Depends(get_current_access),
 ) -> StaffAcademicResponsibilityRead:
-    _require_responsibility_admin(payload.institution_id, access, db)
+    manager_scope = _responsibility_manager_scope(payload.institution_id, access, db)
 
     responsibility_type = payload.responsibility_type.strip().upper()
     subject_ids = _unique_ids(payload.subject_ids)
@@ -241,12 +339,24 @@ def create_staff_responsibility(
     if profile.staff_type != "TEACHING":
         raise HTTPException(status_code=422, detail="Academic responsibility requires Teaching Staff")
 
+    _validate_compartment_scope(
+        db,
+        institution_id=payload.institution_id,
+        academic_year_id=payload.academic_year_id,
+        academic_division_id=payload.academic_division_id,
+        profile=profile,
+        grade_level_ids=grade_level_ids,
+        class_group_ids=class_group_ids,
+        manager_scope=manager_scope,
+    )
+
     item = StaffAcademicResponsibility(
         id=uuid4(),
         staff_profile_id=profile.id,
         user_id=None,
         institution_id=payload.institution_id,
         academic_year_id=payload.academic_year_id,
+        academic_division_id=payload.academic_division_id,
         responsibility_type=responsibility_type,
         display_title=payload.display_title.strip() if payload.display_title else None,
         is_active=True,
@@ -270,23 +380,35 @@ def create_staff_responsibility(
 def list_staff_responsibilities(
     institution_id: UUID,
     academic_year_id: UUID | None = None,
+    academic_division_id: UUID | None = None,
     staff_profile_id: UUID | None = None,
     user_id: UUID | None = None,
     db: Session = Depends(get_db),
     access: AccessContext = Depends(get_current_access),
 ) -> list[StaffAcademicResponsibilityRead]:
-    _require_responsibility_admin(institution_id, access, db)
+    manager_scope = _responsibility_manager_scope(institution_id, access, db)
     stmt = select(StaffAcademicResponsibility).where(
         StaffAcademicResponsibility.institution_id == institution_id,
         StaffAcademicResponsibility.is_active.is_(True),
     )
     if academic_year_id is not None:
         stmt = stmt.where(StaffAcademicResponsibility.academic_year_id == academic_year_id)
+
+    if academic_division_id is not None:
+        if manager_scope is not None and academic_division_id not in manager_scope:
+            raise HTTPException(status_code=403, detail="Academic Compartment is outside your assigned access scope")
+        stmt = stmt.where(StaffAcademicResponsibility.academic_division_id == academic_division_id)
+    elif manager_scope is not None:
+        stmt = stmt.where(StaffAcademicResponsibility.academic_division_id.in_(manager_scope))
+
     if staff_profile_id is not None:
         stmt = stmt.where(StaffAcademicResponsibility.staff_profile_id == staff_profile_id)
     if user_id is not None:
         stmt = stmt.where(StaffAcademicResponsibility.user_id == user_id)
-    items = db.scalars(stmt.order_by(StaffAcademicResponsibility.responsibility_type)).all()
+
+    items = db.scalars(
+        stmt.order_by(StaffAcademicResponsibility.responsibility_type, StaffAcademicResponsibility.created_at)
+    ).all()
     return [_responsibility_read(db, item) for item in items]
 
 
@@ -299,7 +421,13 @@ def delete_staff_responsibility(
     item = db.get(StaffAcademicResponsibility, responsibility_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Academic responsibility not found")
-    _require_responsibility_admin(item.institution_id, access, db)
+
+    manager_scope = _responsibility_manager_scope(item.institution_id, access, db)
+    if manager_scope is not None and (
+        item.academic_division_id is None or item.academic_division_id not in manager_scope
+    ):
+        raise HTTPException(status_code=403, detail="Academic responsibility is outside your assigned access scope")
+
     db.delete(item)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -28,6 +28,7 @@ class StaffAcademicResponsibilityCreate(BaseModel):
     staff_profile_id: UUID
     institution_id: UUID
     academic_year_id: UUID
+    academic_division_id: UUID | None = None
     responsibility_type: str = Field(min_length=1, max_length=40)
     display_title: str | None = Field(default=None, max_length=120)
     subject_ids: list[UUID] = Field(default_factory=list)
@@ -42,6 +43,7 @@ class StaffAcademicResponsibilityRead(BaseModel):
     linked_user_id: UUID | None
     institution_id: UUID
     academic_year_id: UUID
+    academic_division_id: UUID | None
     responsibility_type: str
     display_title: str | None
     is_active: bool
