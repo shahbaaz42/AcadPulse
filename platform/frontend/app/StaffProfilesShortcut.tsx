@@ -11,12 +11,14 @@ export default function StaffProfilesShortcut() {
   const pathname = usePathname();
   const [showProfiles, setShowProfiles] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showAcademicResponsibilities, setShowAcademicResponsibilities] = useState(false);
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     if (pathname !== "/") {
       setShowProfiles(false);
       setShowBulkImport(false);
+      setShowAcademicResponsibilities(false);
       setTarget(null);
       return;
     }
@@ -27,6 +29,7 @@ export default function StaffProfilesShortcut() {
         if (active) {
           setShowProfiles(false);
           setShowBulkImport(false);
+          setShowAcademicResponsibilities(false);
         }
         return;
       }
@@ -45,12 +48,14 @@ export default function StaffProfilesShortcut() {
               assignment.scope_type === "institution",
           );
           setShowProfiles(canOpenStaffProfiles);
+          setShowAcademicResponsibilities(canOpenStaffProfiles);
           setShowBulkImport(canBulkImport);
         })
         .catch(() => {
           if (!active) return;
           setShowProfiles(false);
           setShowBulkImport(false);
+          setShowAcademicResponsibilities(false);
         });
     };
 
@@ -63,7 +68,7 @@ export default function StaffProfilesShortcut() {
   }, [pathname]);
 
   useEffect(() => {
-    if ((!showProfiles && !showBulkImport) || pathname !== "/") {
+    if ((!showProfiles && !showBulkImport && !showAcademicResponsibilities) || pathname !== "/") {
       setTarget(null);
       return;
     }
@@ -77,15 +82,20 @@ export default function StaffProfilesShortcut() {
     const observer = new MutationObserver(attach);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [showProfiles, showBulkImport, pathname]);
+  }, [showProfiles, showBulkImport, showAcademicResponsibilities, pathname]);
 
-  if ((!showProfiles && !showBulkImport) || !target) return null;
+  if ((!showProfiles && !showBulkImport && !showAcademicResponsibilities) || !target) return null;
 
   return createPortal(
     <>
       {showProfiles ? (
         <Link className="secondary-button" href="/staff-profiles">
           Staff &amp; Teacher Profiles
+        </Link>
+      ) : null}
+      {showAcademicResponsibilities ? (
+        <Link className="secondary-button" href="/academic-responsibilities">
+          Subjects &amp; Responsibilities
         </Link>
       ) : null}
       {showBulkImport ? (
