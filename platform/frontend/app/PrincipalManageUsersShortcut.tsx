@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { apiRequest, CurrentUser } from "../lib/api";
+import { AUTH_CHANGED_EVENT, apiRequest, CurrentUser } from "../lib/api";
 
 export default function PrincipalManageUsersShortcut() {
   const pathname = usePathname();
@@ -19,16 +19,29 @@ export default function PrincipalManageUsersShortcut() {
       return;
     }
 
-    apiRequest<CurrentUser>("/api/v1/auth/me")
-      .then((user) => {
-        const isPrincipal = user.assignments.some(
-          (assignment) =>
-            assignment.role_code === "PRINCIPAL" &&
-            assignment.scope_type === "institution",
-        );
-        setShow(isPrincipal);
-      })
-      .catch(() => setShow(false));
+    let active = true;
+    const refreshVisibility = () => {
+      apiRequest<CurrentUser>("/api/v1/auth/me")
+        .then((user) => {
+          if (!active) return;
+          const isPrincipal = user.assignments.some(
+            (assignment) =>
+              assignment.role_code === "PRINCIPAL" &&
+              assignment.scope_type === "institution",
+          );
+          setShow(isPrincipal);
+        })
+        .catch(() => {
+          if (active) setShow(false);
+        });
+    };
+
+    refreshVisibility();
+    window.addEventListener(AUTH_CHANGED_EVENT, refreshVisibility);
+    return () => {
+      active = false;
+      window.removeEventListener(AUTH_CHANGED_EVENT, refreshVisibility);
+    };
   }, [pathname]);
 
   useEffect(() => {
