@@ -175,6 +175,77 @@ def _subject(headers: dict[str, str], institution_id: str, code: str, name: str)
     return response.json()
 
 
+def _staff_profile(
+    headers: dict[str, str],
+    institution_id: str,
+    compartment_id: str,
+    *,
+    full_name: str = "Teacher Without Login",
+    staff_type: str = "TEACHING",
+) -> dict:
+    response = client.post(
+        "/api/v1/staff-profiles",
+        headers=headers,
+        json={
+            "institution_id": institution_id,
+            "full_name": full_name,
+            "staff_type": staff_type,
+            "employee_code": None,
+            "user_id": None,
+            "academic_division_ids": [compartment_id] if staff_type == "TEACHING" else [],
+        },
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_subject_teacher_is_owned_by_staff_profile_without_login_account() -> None:
+    platform_headers = _platform_headers()
+    institution = _institution(platform_headers)
+    principal_headers = _principal_headers(institution["id"])
+    year = _year(principal_headers, institution["id"])
+    compartment = _compartment(principal_headers, institution["id"])
+    _, section_viii = _grade_and_section(principal_headers, institution["id"], year["id"], compartment["id"], "VIII", 1)
+    _, section_ix = _grade_and_section(principal_headers, institution["id"], year["id"], compartment["id"], "IX", 2)
+    maths = _subject(principal_headers, institution["id"], "MATH", "Mathematics")
+    teacher = _staff_profile(
+        principal_headers,
+        institution["id"],
+        compartment["id"],
+        full_name="Ummal Ansha",
+    )
+    assert teacher["user_id"] is None
+
+    response = client.post(
+        "/api/v1/staff-responsibilities",
+        headers=principal_headers,
+        json={
+            "staff_profile_id": teacher["id"],
+            "institution_id": institution["id"],
+            "academic_year_id": year["id"],
+            "responsibility_type": "SUBJECT_TEACHER",
+            "subject_ids": [maths["id"]],
+            "grade_level_ids": [],
+            "class_group_ids": [section_viii["id"], section_ix["id"]],
+        },
+    )
+    assert response.status_code == 201, response.text
+    created = response.json()
+    assert created["staff_profile_id"] == teacher["id"]
+    assert created["staff_display_name"] == "Ummal Ansha"
+    assert created["linked_user_id"] is None
+    assert created["subject_ids"] == [maths["id"]]
+    assert set(created["class_group_ids"]) == {section_viii["id"], section_ix["id"]}
+
+    listed = client.get(
+        f"/api/v1/staff-responsibilities?institution_id={institution['id']}&staff_profile_id={teacher['id']}",
+        headers=principal_headers,
+    )
+    assert listed.status_code == 200, listed.text
+    assert len(listed.json()) == 1
+    assert listed.json()[0]["staff_profile_id"] == teacher["id"]
+
+
 def test_hod_supports_multiple_subjects_and_overall_incharge_multiple_grades() -> None:
     platform_headers = _platform_headers()
     institution = _institution(platform_headers)
@@ -185,13 +256,13 @@ def test_hod_supports_multiple_subjects_and_overall_incharge_multiple_grades() -
     grade_ix, _ = _grade_and_section(principal_headers, institution["id"], year["id"], compartment["id"], "IX", 2)
     english = _subject(principal_headers, institution["id"], "ENG", "English")
     tamil = _subject(principal_headers, institution["id"], "TAM", "Tamil")
-    staff_user_id, _, _ = _create_user()
+    teacher = _staff_profile(principal_headers, institution["id"], compartment["id"], full_name="Languages HOD")
 
     hod = client.post(
         "/api/v1/staff-responsibilities",
         headers=principal_headers,
         json={
-            "user_id": str(staff_user_id),
+            "staff_profile_id": teacher["id"],
             "institution_id": institution["id"],
             "academic_year_id": year["id"],
             "responsibility_type": "HOD",
@@ -202,14 +273,13 @@ def test_hod_supports_multiple_subjects_and_overall_incharge_multiple_grades() -
         },
     )
     assert hod.status_code == 201, hod.text
-    assert hod.json()["display_title"] == "HOD of Languages"
     assert set(hod.json()["subject_ids"]) == {english["id"], tamil["id"]}
 
     overall = client.post(
         "/api/v1/staff-responsibilities",
         headers=principal_headers,
         json={
-            "user_id": str(staff_user_id),
+            "staff_profile_id": teacher["id"],
             "institution_id": institution["id"],
             "academic_year_id": year["id"],
             "responsibility_type": "OVERALL_CLASS_INCHARGE",
@@ -222,118 +292,109 @@ def test_hod_supports_multiple_subjects_and_overall_incharge_multiple_grades() -
     assert overall.status_code == 201, overall.text
     assert set(overall.json()["grade_level_ids"]) == {grade_viii["id"], grade_ix["id"]}
 
-    listed = client.get(
-        f"/api/v1/staff-responsibilities?institution_id={institution['id']}&user_id={staff_user_id}",
-        headers=principal_headers,
-    )
-    assert listed.status_code == 200, listed.text
-    assert {item["responsibility_type"] for item in listed.json()} == {"HOD", "OVERALL_CLASS_INCHARGE"}
 
-
-def test_subject_teacher_keeps_exact_subject_to_sections_and_class_teacher_is_one_section() -> None:
+def test_non_teaching_and_cross_institution_profiles_cannot_receive_academic_responsibilities() -> None:
     platform_headers = _platform_headers()
     institution = _institution(platform_headers)
     principal_headers = _principal_headers(institution["id"])
     year = _year(principal_headers, institution["id"])
     compartment = _compartment(principal_headers, institution["id"])
-    _, section_viii = _grade_and_section(principal_headers, institution["id"], year["id"], compartment["id"], "VIII", 1)
-    _, section_ix = _grade_and_section(principal_headers, institution["id"], year["id"], compartment["id"], "IX", 2)
-    science = _subject(principal_headers, institution["id"], "SCI", "Science")
-    maths = _subject(principal_headers, institution["id"], "MAT", "Mathematics")
-    staff_user_id, _, _ = _create_user()
+    english = _subject(principal_headers, institution["id"], "ENG", "English")
+    non_teaching = _staff_profile(
+        principal_headers,
+        institution["id"],
+        compartment["id"],
+        full_name="Office Staff",
+        staff_type="NON_TEACHING",
+    )
 
-    subject_teacher = client.post(
+    rejected = client.post(
         "/api/v1/staff-responsibilities",
         headers=principal_headers,
         json={
-            "user_id": str(staff_user_id),
+            "staff_profile_id": non_teaching["id"],
             "institution_id": institution["id"],
             "academic_year_id": year["id"],
-            "responsibility_type": "SUBJECT_TEACHER",
-            "subject_ids": [science["id"]],
+            "responsibility_type": "HOD",
+            "subject_ids": [english["id"]],
             "grade_level_ids": [],
-            "class_group_ids": [section_viii["id"], section_ix["id"]],
+            "class_group_ids": [],
         },
     )
-    assert subject_teacher.status_code == 201, subject_teacher.text
-    assert subject_teacher.json()["subject_ids"] == [science["id"]]
-    assert set(subject_teacher.json()["class_group_ids"]) == {section_viii["id"], section_ix["id"]}
+    assert rejected.status_code == 422
+    assert "Teaching Staff" in rejected.json()["detail"]
 
-    invalid_two_subjects = client.post(
+    other_institution = _institution(platform_headers)
+    other_principal_headers = _principal_headers(other_institution["id"])
+    other_compartment = _compartment(other_principal_headers, other_institution["id"])
+    other_teacher = _staff_profile(
+        other_principal_headers,
+        other_institution["id"],
+        other_compartment["id"],
+        full_name="Other School Teacher",
+    )
+    cross = client.post(
         "/api/v1/staff-responsibilities",
         headers=principal_headers,
         json={
-            "user_id": str(staff_user_id),
+            "staff_profile_id": other_teacher["id"],
             "institution_id": institution["id"],
             "academic_year_id": year["id"],
-            "responsibility_type": "SUBJECT_TEACHER",
-            "subject_ids": [science["id"], maths["id"]],
+            "responsibility_type": "HOD",
+            "subject_ids": [english["id"]],
             "grade_level_ids": [],
-            "class_group_ids": [section_viii["id"]],
+            "class_group_ids": [],
         },
     )
-    assert invalid_two_subjects.status_code == 422
-    assert "exactly one subject" in invalid_two_subjects.json()["detail"]
-
-    class_teacher = client.post(
-        "/api/v1/staff-responsibilities",
-        headers=principal_headers,
-        json={
-            "user_id": str(staff_user_id),
-            "institution_id": institution["id"],
-            "academic_year_id": year["id"],
-            "responsibility_type": "CLASS_TEACHER",
-            "subject_ids": [],
-            "grade_level_ids": [],
-            "class_group_ids": [section_viii["id"]],
-        },
-    )
-    assert class_teacher.status_code == 201, class_teacher.text
-
-    invalid_two_sections = client.post(
-        "/api/v1/staff-responsibilities",
-        headers=principal_headers,
-        json={
-            "user_id": str(staff_user_id),
-            "institution_id": institution["id"],
-            "academic_year_id": year["id"],
-            "responsibility_type": "CLASS_TEACHER",
-            "subject_ids": [],
-            "grade_level_ids": [],
-            "class_group_ids": [section_viii["id"], section_ix["id"]],
-        },
-    )
-    assert invalid_two_sections.status_code == 422
-    assert "exactly one section" in invalid_two_sections.json()["detail"]
+    assert cross.status_code == 422
+    assert "selected institution" in cross.json()["detail"]
 
 
-def test_compartment_head_cannot_manage_responsibility_assignments() -> None:
+def test_shape_rules_and_compartment_head_authority_remain_protected() -> None:
     platform_headers = _platform_headers()
     institution = _institution(platform_headers)
     principal_headers = _principal_headers(institution["id"])
     year = _year(principal_headers, institution["id"])
     compartment = _compartment(principal_headers, institution["id"])
-    subject = _subject(principal_headers, institution["id"], "ENG", "English")
-    target_user_id, _, _ = _create_user()
+    _, section = _grade_and_section(principal_headers, institution["id"], year["id"], compartment["id"], "X", 1)
+    english = _subject(principal_headers, institution["id"], "ENG", "English")
+    maths = _subject(principal_headers, institution["id"], "MATH", "Mathematics")
+    teacher = _staff_profile(principal_headers, institution["id"], compartment["id"])
+
+    invalid = client.post(
+        "/api/v1/staff-responsibilities",
+        headers=principal_headers,
+        json={
+            "staff_profile_id": teacher["id"],
+            "institution_id": institution["id"],
+            "academic_year_id": year["id"],
+            "responsibility_type": "SUBJECT_TEACHER",
+            "subject_ids": [english["id"], maths["id"]],
+            "grade_level_ids": [],
+            "class_group_ids": [section["id"]],
+        },
+    )
+    assert invalid.status_code == 422
+    assert "exactly one subject" in invalid.json()["detail"]
+
     _, head_email, head_password = _create_user(
         "COMPARTMENT_HEAD",
         institution_id=UUID(institution["id"]),
         academic_division_id=UUID(compartment["id"]),
     )
     head_headers = _login(head_email, head_password)
-
-    response = client.post(
+    denied = client.post(
         "/api/v1/staff-responsibilities",
         headers=head_headers,
         json={
-            "user_id": str(target_user_id),
+            "staff_profile_id": teacher["id"],
             "institution_id": institution["id"],
             "academic_year_id": year["id"],
             "responsibility_type": "HOD",
-            "subject_ids": [subject["id"]],
+            "subject_ids": [english["id"]],
             "grade_level_ids": [],
             "class_group_ids": [],
         },
     )
-    assert response.status_code == 403
-    assert "Principal or School Admin" in response.json()["detail"]
+    assert denied.status_code == 403
+    assert "Principal or School Admin" in denied.json()["detail"]
