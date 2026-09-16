@@ -5,6 +5,7 @@ from .academic_responsibility import (
     StaffResponsibilityGrade,
     StaffResponsibilitySubject,
     Subject,
+    SubjectAcademicDivision,
 )
 from .foundation import (
     AcademicDivision,
@@ -26,6 +27,7 @@ __all__ = [
     "AcademicDivisionGradeLevel",
     "ClassGroup",
     "Subject",
+    "SubjectAcademicDivision",
     "StaffAcademicResponsibility",
     "StaffResponsibilitySubject",
     "StaffResponsibilityGrade",

@@ -14,6 +14,7 @@ from ..models.academic_responsibility import (
     StaffResponsibilityGrade,
     StaffResponsibilitySubject,
     Subject,
+    SubjectAcademicDivision,
 )
 from ..models.foundation import (
     AcademicDivision,
@@ -50,13 +51,34 @@ def _is_institution_responsibility_admin(institution_id: UUID, access: AccessCon
     )
 
 
-def _require_subject_admin(institution_id: UUID, access: AccessContext, db: Session) -> None:
+def _compartment_head_scope(institution_id: UUID, access: AccessContext) -> set[UUID]:
+    return {
+        assignment.academic_division_id
+        for assignment in access.assignments
+        if assignment.role_code == "COMPARTMENT_HEAD"
+        and assignment.scope_type == "academic_compartment"
+        and assignment.institution_id == institution_id
+        and assignment.academic_division_id is not None
+    }
+
+
+def _subject_manager_scope(
+    institution_id: UUID,
+    access: AccessContext,
+    db: Session,
+) -> set[UUID] | None:
+    """Return None for institution-wide Subject management, else allowed compartments."""
     require_institution_access(institution_id, access, db)
     if _is_institution_responsibility_admin(institution_id, access):
-        return
+        return None
+
+    scoped = _compartment_head_scope(institution_id, access)
+    if scoped:
+        return scoped
+
     raise HTTPException(
         status_code=403,
-        detail="Canonical Subject management requires Principal or School Admin access",
+        detail="Subject management requires Principal or School Admin access, or scoped Compartment Head access",
     )
 
 
@@ -70,14 +92,7 @@ def _responsibility_manager_scope(
     if _is_institution_responsibility_admin(institution_id, access):
         return None
 
-    scoped = {
-        assignment.academic_division_id
-        for assignment in access.assignments
-        if assignment.role_code == "COMPARTMENT_HEAD"
-        and assignment.scope_type == "academic_compartment"
-        and assignment.institution_id == institution_id
-        and assignment.academic_division_id is not None
-    }
+    scoped = _compartment_head_scope(institution_id, access)
     if scoped:
         return scoped
 
@@ -160,6 +175,21 @@ def _load_targets(
             )
 
 
+def _validate_division_target(
+    db: Session,
+    *,
+    institution_id: UUID,
+    academic_division_id: UUID,
+    manager_scope: set[UUID] | None,
+) -> AcademicDivision:
+    division = db.get(AcademicDivision, academic_division_id)
+    if division is None or division.institution_id != institution_id or not division.is_active:
+        raise HTTPException(status_code=422, detail="Academic Compartment must belong to the selected institution")
+    if manager_scope is not None and academic_division_id not in manager_scope:
+        raise HTTPException(status_code=403, detail="Academic Compartment is outside your assigned access scope")
+    return division
+
+
 def _validate_compartment_scope(
     db: Session,
     *,
@@ -167,6 +197,7 @@ def _validate_compartment_scope(
     academic_year_id: UUID,
     academic_division_id: UUID | None,
     profile: StaffProfile,
+    subject_ids: list[UUID],
     grade_level_ids: list[UUID],
     class_group_ids: list[UUID],
     manager_scope: set[UUID] | None,
@@ -179,12 +210,12 @@ def _validate_compartment_scope(
             )
         return
 
-    division = db.get(AcademicDivision, academic_division_id)
-    if division is None or division.institution_id != institution_id or not division.is_active:
-        raise HTTPException(status_code=422, detail="Academic Compartment must belong to the selected institution")
-
-    if manager_scope is not None and academic_division_id not in manager_scope:
-        raise HTTPException(status_code=403, detail="Academic Compartment is outside your assigned access scope")
+    _validate_division_target(
+        db,
+        institution_id=institution_id,
+        academic_division_id=academic_division_id,
+        manager_scope=manager_scope,
+    )
 
     placement = db.scalar(
         select(StaffProfileAcademicDivision.id).where(
@@ -197,6 +228,21 @@ def _validate_compartment_scope(
             status_code=422,
             detail="Staff Profile must be placed in the selected Academic Compartment",
         )
+
+    if subject_ids:
+        mapped_subject_ids = set(
+            db.scalars(
+                select(SubjectAcademicDivision.subject_id).where(
+                    SubjectAcademicDivision.academic_division_id == academic_division_id,
+                    SubjectAcademicDivision.subject_id.in_(subject_ids),
+                )
+            ).all()
+        )
+        if mapped_subject_ids != set(subject_ids):
+            raise HTTPException(
+                status_code=422,
+                detail="All selected subjects must be available in the selected Academic Compartment",
+            )
 
     target_grade_ids = set(grade_level_ids)
     if class_group_ids:
@@ -219,6 +265,24 @@ def _validate_compartment_scope(
                 status_code=422,
                 detail="All selected grades and sections must belong to the selected Academic Compartment for this academic year",
             )
+
+
+def _subject_read(db: Session, item: Subject) -> SubjectRead:
+    division_ids = db.scalars(
+        select(SubjectAcademicDivision.academic_division_id).where(
+            SubjectAcademicDivision.subject_id == item.id
+        )
+    ).all()
+    return SubjectRead(
+        id=item.id,
+        institution_id=item.institution_id,
+        code=item.code,
+        name=item.name,
+        is_active=item.is_active,
+        academic_division_ids=list(division_ids),
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
 
 
 def _responsibility_read(db: Session, item: StaffAcademicResponsibility) -> StaffAcademicResponsibilityRead:
@@ -267,40 +331,123 @@ def create_subject(
     payload: SubjectCreate,
     db: Session = Depends(get_db),
     access: AccessContext = Depends(get_current_access),
-) -> Subject:
-    _require_subject_admin(payload.institution_id, access, db)
+) -> SubjectRead:
+    manager_scope = _subject_manager_scope(payload.institution_id, access, db)
     if db.get(Institution, payload.institution_id) is None:
         raise HTTPException(status_code=404, detail="Institution not found")
 
-    item = Subject(
-        id=uuid4(),
-        institution_id=payload.institution_id,
-        code=payload.code.strip().upper(),
-        name=payload.name.strip(),
-        is_active=True,
+    if payload.academic_division_id is not None:
+        _validate_division_target(
+            db,
+            institution_id=payload.institution_id,
+            academic_division_id=payload.academic_division_id,
+            manager_scope=manager_scope,
+        )
+    elif manager_scope is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Compartment Head Subject management requires an Academic Compartment",
+        )
+
+    code = payload.code.strip().upper()
+    name = payload.name.strip()
+    existing = db.scalar(
+        select(Subject).where(
+            Subject.institution_id == payload.institution_id,
+            Subject.code == code,
+        )
     )
-    db.add(item)
+
+    if existing is not None:
+        if existing.name.casefold() != name.casefold():
+            raise HTTPException(
+                status_code=409,
+                detail=f"Subject code {code} already exists as {existing.name}",
+            )
+        item = existing
+    else:
+        item = Subject(
+            id=uuid4(),
+            institution_id=payload.institution_id,
+            code=code,
+            name=name,
+            is_active=True,
+        )
+        db.add(item)
+        db.flush()
+
+    if payload.academic_division_id is not None:
+        target_division_ids = [payload.academic_division_id]
+    else:
+        target_division_ids = db.scalars(
+            select(AcademicDivision.id).where(
+                AcademicDivision.institution_id == payload.institution_id,
+                AcademicDivision.is_active.is_(True),
+            )
+        ).all()
+
+    existing_division_ids = set(
+        db.scalars(
+            select(SubjectAcademicDivision.academic_division_id).where(
+                SubjectAcademicDivision.subject_id == item.id
+            )
+        ).all()
+    )
+    for division_id in target_division_ids:
+        if division_id not in existing_division_ids:
+            db.add(
+                SubjectAcademicDivision(
+                    subject_id=item.id,
+                    academic_division_id=division_id,
+                )
+            )
+
     try:
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="Subject code already exists for this institution") from exc
     db.refresh(item)
-    return item
+    return _subject_read(db, item)
 
 
 @router.get("/subjects", response_model=list[SubjectRead])
 def list_subjects(
     institution_id: UUID,
+    academic_division_id: UUID | None = None,
     db: Session = Depends(get_db),
     access: AccessContext = Depends(get_current_access),
-) -> list[Subject]:
+) -> list[SubjectRead]:
     require_institution_access(institution_id, access, db)
-    return db.scalars(
-        select(Subject)
-        .where(Subject.institution_id == institution_id, Subject.is_active.is_(True))
-        .order_by(Subject.name)
-    ).all()
+    institution_wide = _is_institution_responsibility_admin(institution_id, access)
+    scoped = _compartment_head_scope(institution_id, access)
+
+    stmt = select(Subject).where(
+        Subject.institution_id == institution_id,
+        Subject.is_active.is_(True),
+    )
+
+    if academic_division_id is not None:
+        manager_scope = None if institution_wide else scoped or None
+        _validate_division_target(
+            db,
+            institution_id=institution_id,
+            academic_division_id=academic_division_id,
+            manager_scope=manager_scope,
+        )
+        stmt = (
+            stmt.join(SubjectAcademicDivision, SubjectAcademicDivision.subject_id == Subject.id)
+            .where(SubjectAcademicDivision.academic_division_id == academic_division_id)
+        )
+    elif scoped and not institution_wide:
+        stmt = (
+            stmt.join(SubjectAcademicDivision, SubjectAcademicDivision.subject_id == Subject.id)
+            .where(SubjectAcademicDivision.academic_division_id.in_(scoped))
+            .distinct()
+        )
+
+    items = db.scalars(stmt.order_by(Subject.name)).all()
+    return [_subject_read(db, item) for item in items]
 
 
 @router.post(
@@ -345,6 +492,7 @@ def create_staff_responsibility(
         academic_year_id=payload.academic_year_id,
         academic_division_id=payload.academic_division_id,
         profile=profile,
+        subject_ids=subject_ids,
         grade_level_ids=grade_level_ids,
         class_group_ids=class_group_ids,
         manager_scope=manager_scope,

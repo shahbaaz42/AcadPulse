@@ -87,15 +87,21 @@ export default function AcademicResponsibilitiesPage() {
   const institutionWideSingle = Boolean(currentUser && !currentUser.is_platform_admin && institutions.length === 1);
 
   const canManageSubjects = useMemo(() => {
-    if (!currentUser || !selectedInstitutionId) return false;
+    if (!currentUser || !selectedInstitutionId || !selectedDivisionId) return false;
     if (currentUser.is_platform_admin) return true;
-    return currentUser.assignments.some(
-      (assignment) =>
+    return currentUser.assignments.some((assignment) => {
+      if (assignment.institution_id !== selectedInstitutionId) return false;
+      if (
         assignment.scope_type === "institution" &&
-        assignment.institution_id === selectedInstitutionId &&
-        ["PRINCIPAL", "SCHOOL_ADMIN"].includes(assignment.role_code),
-    );
-  }, [currentUser, selectedInstitutionId]);
+        ["PRINCIPAL", "SCHOOL_ADMIN"].includes(assignment.role_code)
+      ) return true;
+      return (
+        assignment.role_code === "COMPARTMENT_HEAD" &&
+        assignment.scope_type === "academic_compartment" &&
+        assignment.academic_division_id === selectedDivisionId
+      );
+    });
+  }, [currentUser, selectedInstitutionId, selectedDivisionId]);
 
   const canManageResponsibilities = useMemo(() => {
     if (!currentUser || !selectedInstitutionId || !selectedDivisionId) return false;
@@ -167,6 +173,13 @@ export default function AcademicResponsibilitiesPage() {
       )
       .sort((a, b) => a.full_name.localeCompare(b.full_name)),
     [profiles, selectedDivisionId],
+  );
+
+  const visibleSubjects = useMemo(
+    () => subjects
+      .filter((item) => item.academic_division_ids.includes(selectedDivisionId))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [subjects, selectedDivisionId],
   );
 
   const gradeName = (id: string) => grades.find((item) => item.id === id)?.display_name ?? "Unknown grade";
@@ -264,7 +277,7 @@ export default function AcademicResponsibilitiesPage() {
 
   async function createSubject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedInstitutionId || !canManageSubjects) return;
+    if (!selectedInstitutionId || !selectedDivisionId || !canManageSubjects) return;
     setSaving(true);
     setNotice(null);
     try {
@@ -272,14 +285,21 @@ export default function AcademicResponsibilitiesPage() {
         method: "POST",
         body: JSON.stringify({
           institution_id: selectedInstitutionId,
+          academic_division_id: selectedDivisionId,
           code: subjectCode.trim(),
           name: subjectName.trim(),
         }),
       });
-      setSubjects((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setSubjects((current) => {
+        const withoutCurrent = current.filter((item) => item.id !== created.id);
+        return [...withoutCurrent, created].sort((a, b) => a.name.localeCompare(b.name));
+      });
       setSubjectCode("");
       setSubjectName("");
-      setNotice({ type: "success", text: `${created.name} has been added to the canonical Subject Master.` });
+      setNotice({
+        type: "success",
+        text: `${created.name} is now available in ${selectedDivision?.name ?? "the selected Academic Compartment"}.`,
+      });
     } catch (error) {
       setNotice({ type: "error", text: error instanceof Error ? error.message : "Unable to create subject" });
     } finally {
@@ -379,7 +399,7 @@ export default function AcademicResponsibilitiesPage() {
           <p style={{ margin: "0 0 6px", color: "#52617a", fontWeight: 700 }}>AcadPulse — Academic Intelligence &amp; Management Platform</p>
           <h1 style={{ margin: 0, fontSize: "clamp(1.75rem, 4vw, 2.5rem)", color: "#172033" }}>Subjects &amp; Academic Responsibilities</h1>
           <p style={{ maxWidth: 820, color: "#5d687b", lineHeight: 1.6 }}>
-            Maintain canonical academic subjects, then assign Subject Teacher, Class Teacher, HOD and Overall Class Incharge responsibilities to Staff Profiles.
+            Compartment Heads maintain the subjects and staff responsibilities for their assigned Academic Compartment. Principal / School Admin retain institution-wide oversight and override access.
           </p>
         </div>
         <Link className="secondary-button" href="/">Back to School Foundation</Link>
@@ -416,7 +436,13 @@ export default function AcademicResponsibilitiesPage() {
           </label>
           <div>
             <p style={{ margin: "0 0 4px", fontSize: ".78rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: ".05em" }}>Your access</p>
-            <strong>{canManageSubjects ? "Institution Subject Master + responsibility management" : isCompartmentHead ? "Compartment-scoped responsibility management" : "Academic responsibility view"}</strong>
+            <strong>
+              {canManageSubjects && canManageResponsibilities
+                ? isCompartmentHead
+                  ? "Compartment Subject Master + responsibility management"
+                  : "Institution oversight + compartment management"
+                : "Academic responsibility view"}
+            </strong>
           </div>
         </div>
       </section>
@@ -432,25 +458,31 @@ export default function AcademicResponsibilitiesPage() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div>
             <h2 style={{ margin: 0 }}>Canonical Subject Master</h2>
-            <p style={{ margin: "6px 0 0", color: "#64748b" }}>{subjects.length} active subjects available institution-wide.</p>
+            <p style={{ margin: "6px 0 0", color: "#64748b" }}>
+              {selectedDivision
+                ? `${visibleSubjects.length} active subjects available in ${selectedDivision.name}.`
+                : "Select an Academic Compartment to manage its subjects."}
+            </p>
           </div>
-          {!canManageSubjects ? <span style={{ color: "#64748b", fontWeight: 700 }}>Principal / School Admin maintains the Subject Master</span> : null}
+          {isCompartmentHead && canManageSubjects ? (
+            <span style={{ color: "#64748b", fontWeight: 700 }}>You manage subjects only for your assigned Academic Compartment.</span>
+          ) : null}
         </div>
 
         {canManageSubjects ? (
           <form onSubmit={createSubject} style={{ display: "grid", gridTemplateColumns: "minmax(150px, .5fr) minmax(240px, 1fr) auto", gap: 14, alignItems: "end", marginTop: 18 }}>
             <label style={{ fontWeight: 700, color: "#354157" }}>Subject Code<input value={subjectCode} onChange={(event) => setSubjectCode(event.target.value)} required maxLength={50} placeholder="MATH" style={inputStyle} /></label>
             <label style={{ fontWeight: 700, color: "#354157" }}>Subject Name<input value={subjectName} onChange={(event) => setSubjectName(event.target.value)} required maxLength={120} placeholder="Mathematics" style={inputStyle} /></label>
-            <button className="primary-button" disabled={saving}>Add Subject</button>
+            <button className="primary-button" disabled={saving || !selectedDivisionId}>Add Subject</button>
           </form>
         ) : null}
 
         <div style={{ marginTop: 18, display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {subjects.length ? subjects.map((subject) => (
+          {visibleSubjects.length ? visibleSubjects.map((subject) => (
             <span key={subject.id} style={{ border: "1px solid #dfe5ef", borderRadius: 999, padding: "7px 10px", background: "#fff", color: "#354157" }}>
               <strong>{subject.code}</strong> · {subject.name}
             </span>
-          )) : <p style={{ color: "#64748b" }}>No canonical subjects have been created yet.</p>}
+          )) : <p style={{ color: "#64748b" }}>No canonical subjects have been added to this Academic Compartment yet.</p>}
         </div>
       </section>
 
@@ -494,7 +526,7 @@ export default function AcademicResponsibilitiesPage() {
                   Subject
                   <select value={subjectIds[0] ?? ""} onChange={(event) => setSubjectIds(event.target.value ? [event.target.value] : [])} required style={inputStyle}>
                     <option value="">Select canonical subject</option>
-                    {subjects.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>)}
+                    {visibleSubjects.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>)}
                   </select>
                 </label>
                 <TargetChecks title="Teaching Sections" emptyText="No sections are available in this Academic Compartment for the selected year." items={visibleClasses.map((item) => ({ id: item.id, label: item.display_name }))} selected={classGroupIds} onToggle={(id) => toggleValue(id, classGroupIds, setClassGroupIds)} />
@@ -512,7 +544,7 @@ export default function AcademicResponsibilitiesPage() {
             ) : null}
 
             {responsibilityType === "HOD" ? (
-              <TargetChecks title="HOD Subject(s)" emptyText="Create canonical subjects before assigning an HOD." items={subjects.map((item) => ({ id: item.id, label: `${item.name} (${item.code})` }))} selected={subjectIds} onToggle={(id) => toggleValue(id, subjectIds, setSubjectIds)} />
+              <TargetChecks title="HOD Subject(s)" emptyText="Create canonical subjects in this Academic Compartment before assigning an HOD." items={visibleSubjects.map((item) => ({ id: item.id, label: `${item.name} (${item.code})` }))} selected={subjectIds} onToggle={(id) => toggleValue(id, subjectIds, setSubjectIds)} />
             ) : null}
 
             {responsibilityType === "OVERALL_CLASS_INCHARGE" ? (

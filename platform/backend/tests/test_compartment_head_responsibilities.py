@@ -202,6 +202,7 @@ def test_compartment_head_can_manage_only_its_compartment_responsibilities() -> 
     )
     assert subject_response.status_code == 201, subject_response.text
     maths = subject_response.json()
+    assert set(maths["academic_division_ids"]) == {senior["id"], junior["id"]}
     teacher = _staff_profile(principal_headers, institution["id"], senior["id"])
 
     head_email, head_password = _create_user(
@@ -210,6 +211,39 @@ def test_compartment_head_can_manage_only_its_compartment_responsibilities() -> 
         academic_division_id=UUID(senior["id"]),
     )
     head_headers = _login(head_email, head_password)
+
+    ip_response = client.post(
+        "/api/v1/subjects",
+        headers=head_headers,
+        json={
+            "institution_id": institution["id"],
+            "academic_division_id": senior["id"],
+            "code": "IP",
+            "name": "Informatics Practices",
+        },
+    )
+    assert ip_response.status_code == 201, ip_response.text
+    assert ip_response.json()["academic_division_ids"] == [senior["id"]]
+
+    scoped_subjects = client.get(
+        f"/api/v1/subjects?institution_id={institution['id']}&academic_division_id={senior['id']}",
+        headers=head_headers,
+    )
+    assert scoped_subjects.status_code == 200, scoped_subjects.text
+    assert {item["code"] for item in scoped_subjects.json()} == {"MATH", "IP"}
+
+    subject_outside_scope = client.post(
+        "/api/v1/subjects",
+        headers=head_headers,
+        json={
+            "institution_id": institution["id"],
+            "academic_division_id": junior["id"],
+            "code": "SCI",
+            "name": "Science",
+        },
+    )
+    assert subject_outside_scope.status_code == 403
+    assert "outside your assigned access scope" in subject_outside_scope.json()["detail"]
 
     created = client.post(
         "/api/v1/staff-responsibilities",
@@ -268,14 +302,6 @@ def test_compartment_head_can_manage_only_its_compartment_responsibilities() -> 
     )
     assert wrong_section.status_code == 422
     assert "selected Academic Compartment" in wrong_section.json()["detail"]
-
-    subject_denied = client.post(
-        "/api/v1/subjects",
-        headers=head_headers,
-        json={"institution_id": institution["id"], "code": "IP", "name": "Informatics Practices"},
-    )
-    assert subject_denied.status_code == 403
-    assert "Subject management" in subject_denied.json()["detail"]
 
     deleted = client.delete(
         f"/api/v1/staff-responsibilities/{created.json()['id']}",
