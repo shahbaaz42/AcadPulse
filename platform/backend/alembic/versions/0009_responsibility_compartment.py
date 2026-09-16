@@ -36,14 +36,14 @@ def upgrade() -> None:
         """
         UPDATE staff_academic_responsibilities AS responsibility
         SET academic_division_id = placement.academic_division_id
-        FROM (
-            SELECT staff_profile_id, MIN(academic_division_id) AS academic_division_id
-            FROM staff_profile_academic_divisions
-            GROUP BY staff_profile_id
-            HAVING COUNT(*) = 1
-        ) AS placement
+        FROM staff_profile_academic_divisions AS placement
         WHERE responsibility.academic_division_id IS NULL
           AND responsibility.staff_profile_id = placement.staff_profile_id
+          AND 1 = (
+              SELECT COUNT(*)
+              FROM staff_profile_academic_divisions AS placement_count
+              WHERE placement_count.staff_profile_id = placement.staff_profile_id
+          )
         """
     )
 
