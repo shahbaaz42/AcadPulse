@@ -16,6 +16,7 @@ from ..models.academic_responsibility import (
     Subject,
 )
 from ..models.foundation import AcademicYear, ClassGroup, GradeLevel, Institution
+from ..models.staff import StaffProfile
 from ..schemas.academic_responsibility import (
     StaffAcademicResponsibilityCreate,
     StaffAcademicResponsibilityRead,
@@ -124,7 +125,8 @@ def _load_targets(
 
 
 def _responsibility_read(db: Session, item: StaffAcademicResponsibility) -> StaffAcademicResponsibilityRead:
-    user = db.get(UserAccount, item.user_id)
+    profile = db.get(StaffProfile, item.staff_profile_id) if item.staff_profile_id is not None else None
+    legacy_user = db.get(UserAccount, item.user_id) if profile is None and item.user_id is not None else None
     subject_ids = db.scalars(
         select(StaffResponsibilitySubject.subject_id).where(
             StaffResponsibilitySubject.responsibility_id == item.id
@@ -142,8 +144,13 @@ def _responsibility_read(db: Session, item: StaffAcademicResponsibility) -> Staf
     ).all()
     return StaffAcademicResponsibilityRead(
         id=item.id,
-        user_id=item.user_id,
-        user_display_name=user.display_name if user is not None else "Unknown user",
+        staff_profile_id=item.staff_profile_id,
+        staff_display_name=(
+            profile.full_name
+            if profile is not None
+            else legacy_user.display_name if legacy_user is not None else "Legacy staff record"
+        ),
+        linked_user_id=profile.user_id if profile is not None else item.user_id,
         institution_id=item.institution_id,
         academic_year_id=item.academic_year_id,
         responsibility_type=item.responsibility_type,
@@ -224,13 +231,20 @@ def create_staff_responsibility(
         class_group_ids,
     )
 
-    user = db.get(UserAccount, payload.user_id)
-    if user is None or user.status != "active":
-        raise HTTPException(status_code=422, detail="Academic responsibility requires an active user account")
+    profile = db.get(StaffProfile, payload.staff_profile_id)
+    if profile is None:
+        raise HTTPException(status_code=422, detail="Academic responsibility requires a Staff Profile")
+    if profile.institution_id != payload.institution_id:
+        raise HTTPException(status_code=422, detail="Staff Profile must belong to the selected institution")
+    if not profile.is_active:
+        raise HTTPException(status_code=422, detail="Academic responsibility requires an active Staff Profile")
+    if profile.staff_type != "TEACHING":
+        raise HTTPException(status_code=422, detail="Academic responsibility requires Teaching Staff")
 
     item = StaffAcademicResponsibility(
         id=uuid4(),
-        user_id=user.id,
+        staff_profile_id=profile.id,
+        user_id=None,
         institution_id=payload.institution_id,
         academic_year_id=payload.academic_year_id,
         responsibility_type=responsibility_type,
@@ -256,6 +270,7 @@ def create_staff_responsibility(
 def list_staff_responsibilities(
     institution_id: UUID,
     academic_year_id: UUID | None = None,
+    staff_profile_id: UUID | None = None,
     user_id: UUID | None = None,
     db: Session = Depends(get_db),
     access: AccessContext = Depends(get_current_access),
@@ -267,6 +282,8 @@ def list_staff_responsibilities(
     )
     if academic_year_id is not None:
         stmt = stmt.where(StaffAcademicResponsibility.academic_year_id == academic_year_id)
+    if staff_profile_id is not None:
+        stmt = stmt.where(StaffAcademicResponsibility.staff_profile_id == staff_profile_id)
     if user_id is not None:
         stmt = stmt.where(StaffAcademicResponsibility.user_id == user_id)
     items = db.scalars(stmt.order_by(StaffAcademicResponsibility.responsibility_type)).all()

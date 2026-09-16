@@ -25,7 +25,7 @@ class SubjectRead(ORMModel):
 
 
 class StaffAcademicResponsibilityCreate(BaseModel):
-    user_id: UUID
+    staff_profile_id: UUID
     institution_id: UUID
     academic_year_id: UUID
     responsibility_type: str = Field(min_length=1, max_length=40)
@@ -37,8 +37,9 @@ class StaffAcademicResponsibilityCreate(BaseModel):
 
 class StaffAcademicResponsibilityRead(BaseModel):
     id: UUID
-    user_id: UUID
-    user_display_name: str
+    staff_profile_id: UUID | None
+    staff_display_name: str
+    linked_user_id: UUID | None
     institution_id: UUID
     academic_year_id: UUID
     responsibility_type: str

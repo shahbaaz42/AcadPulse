@@ -32,10 +32,21 @@ class StaffAcademicResponsibility(AcademicResponsibilityTimestampMixin, Base):
             "responsibility_type IN ('SUBJECT_TEACHER', 'CLASS_TEACHER', 'HOD', 'OVERALL_CLASS_INCHARGE')",
             name="ck_staff_academic_responsibility_type",
         ),
+        CheckConstraint(
+            "staff_profile_id IS NOT NULL OR user_id IS NOT NULL",
+            name="ck_staff_academic_responsibility_owner",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    staff_profile_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("staff_profiles.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    # Legacy provenance only. New responsibilities are owned by StaffProfile so
+    # teachers do not need an AcadPulse login account.
+    user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     institution_id: Mapped[UUID] = mapped_column(ForeignKey("institutions.id", ondelete="RESTRICT"), nullable=False, index=True)
     academic_year_id: Mapped[UUID] = mapped_column(ForeignKey("academic_years.id", ondelete="RESTRICT"), nullable=False, index=True)
     responsibility_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
