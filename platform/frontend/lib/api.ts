@@ -197,6 +197,7 @@ export type Subject = {
   code: string;
   name: string;
   is_active: boolean;
+  academic_division_ids: string[];
   created_at: string;
   updated_at: string;
 };
