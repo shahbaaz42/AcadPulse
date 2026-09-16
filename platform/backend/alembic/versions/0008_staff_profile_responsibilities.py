@@ -1,13 +1,13 @@
 """Attach academic responsibilities to staff profiles.
 
-Revision ID: 0008_staff_profile_responsibilities
+Revision ID: 0008_staff_profile_resp
 Revises: 0007_staff_profiles
 """
 
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0008_staff_profile_responsibilities"
+revision = "0008_staff_profile_resp"
 down_revision = "0007_staff_profiles"
 branch_labels = None
 depends_on = None
