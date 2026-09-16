@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { AUTH_CHANGED_EVENT, apiRequest, CurrentUser } from "../lib/api";
+import { AUTH_CHANGED_EVENT, apiRequest, CurrentUser, getAccessToken } from "../lib/api";
 
 export default function PrincipalManageUsersShortcut() {
   const pathname = usePathname();
@@ -21,6 +21,11 @@ export default function PrincipalManageUsersShortcut() {
 
     let active = true;
     const refreshVisibility = () => {
+      if (!getAccessToken()) {
+        if (active) setShow(false);
+        return;
+      }
+
       apiRequest<CurrentUser>("/api/v1/auth/me")
         .then((user) => {
           if (!active) return;
