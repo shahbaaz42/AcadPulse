@@ -2,6 +2,7 @@ export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
 
 const ACCESS_TOKEN_KEY = "acadpulse_access_token";
+export const AUTH_CHANGED_EVENT = "acadpulse:auth-changed";
 
 export type ApiErrorBody = {
   detail?: string | Array<{ msg?: string }>;
@@ -41,6 +42,11 @@ function errorMessage(body: ApiErrorBody | null, fallback: string) {
   return messages.length ? messages.join(", ") : fallback;
 }
 
+function notifyAuthChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+}
+
 export function getAccessToken() {
   if (typeof window === "undefined") return null;
   return window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
@@ -49,11 +55,13 @@ export function getAccessToken() {
 export function setAccessToken(token: string) {
   if (typeof window === "undefined") return;
   window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+  notifyAuthChanged();
 }
 
 export function clearAccessToken() {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  notifyAuthChanged();
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
