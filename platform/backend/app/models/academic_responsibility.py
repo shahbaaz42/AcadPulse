@@ -25,6 +25,19 @@ class Subject(AcademicResponsibilityTimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
+class SubjectAcademicDivision(Base):
+    """Make one canonical Subject available in one or more Academic Compartments."""
+
+    __tablename__ = "subject_academic_divisions"
+
+    subject_id: Mapped[UUID] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), primary_key=True
+    )
+    academic_division_id: Mapped[UUID] = mapped_column(
+        ForeignKey("academic_divisions.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
 class StaffAcademicResponsibility(AcademicResponsibilityTimestampMixin, Base):
     __tablename__ = "staff_academic_responsibilities"
     __table_args__ = (
