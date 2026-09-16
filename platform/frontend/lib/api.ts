@@ -190,3 +190,37 @@ export type StaffProfile = {
   created_at: string;
   updated_at: string;
 };
+
+export type Subject = {
+  id: string;
+  institution_id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AcademicResponsibilityType =
+  | "SUBJECT_TEACHER"
+  | "CLASS_TEACHER"
+  | "HOD"
+  | "OVERALL_CLASS_INCHARGE";
+
+export type StaffAcademicResponsibility = {
+  id: string;
+  staff_profile_id: string | null;
+  staff_display_name: string;
+  linked_user_id: string | null;
+  institution_id: string;
+  academic_year_id: string;
+  academic_division_id: string | null;
+  responsibility_type: AcademicResponsibilityType;
+  display_title: string | null;
+  is_active: boolean;
+  subject_ids: string[];
+  grade_level_ids: string[];
+  class_group_ids: string[];
+  created_at: string;
+  updated_at: string;
+};
