@@ -10,16 +10,18 @@ class ORMModel(BaseModel):
 
 class SubjectCreate(BaseModel):
     institution_id: UUID
+    academic_division_id: UUID | None = None
     code: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1, max_length=120)
 
 
-class SubjectRead(ORMModel):
+class SubjectRead(BaseModel):
     id: UUID
     institution_id: UUID
     code: str
     name: str
     is_active: bool
+    academic_division_ids: list[UUID]
     created_at: datetime
     updated_at: datetime
 
