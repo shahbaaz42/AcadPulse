@@ -54,12 +54,16 @@ export function getAccessToken() {
 
 export function setAccessToken(token: string) {
   if (typeof window === "undefined") return;
+  const currentToken = window.sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  if (currentToken === token) return;
   window.sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
   notifyAuthChanged();
 }
 
 export function clearAccessToken() {
   if (typeof window === "undefined") return;
+  const hadToken = window.sessionStorage.getItem(ACCESS_TOKEN_KEY) !== null;
+  if (!hadToken) return;
   window.sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   notifyAuthChanged();
 }
