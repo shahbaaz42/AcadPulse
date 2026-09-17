@@ -9,6 +9,7 @@ from .routers.foundation_edits import router as foundation_edits_router
 from .routers.principal_users import router as principal_users_router
 from .routers.staff_bulk import router as staff_bulk_router
 from .routers.staff import router as staff_router
+from .routers.subject_management import router as subject_management_router
 from .settings import settings
 
 app = FastAPI(title=settings.app_name, version="0.9.0")
@@ -26,6 +27,7 @@ app.include_router(principal_users_router)
 app.include_router(foundation_router)
 app.include_router(foundation_edits_router)
 app.include_router(academic_responsibility_router)
+app.include_router(subject_management_router)
 app.include_router(staff_bulk_router)
 app.include_router(staff_router)
 app.include_router(organization_router)
