@@ -15,6 +15,11 @@ class SubjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
 
+class SubjectUpdate(BaseModel):
+    code: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=120)
+
+
 class SubjectRead(BaseModel):
     id: UUID
     institution_id: UUID
