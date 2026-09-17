@@ -14,20 +14,17 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # This migration runs while the previous Render instance can still be live.
+    # Creating inline foreign keys against the existing subjects and
+    # academic_divisions tables can wait on locks held by that old instance and
+    # prevent the new API from ever binding its port. Create the small mapping
+    # table without those physical FK constraints during this zero-downtime
+    # deployment. Application validation still enforces institution/division
+    # ownership, and the composite primary key prevents duplicate mappings.
     op.create_table(
         "subject_academic_divisions",
-        sa.Column(
-            "subject_id",
-            sa.Uuid(),
-            sa.ForeignKey("subjects.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "academic_division_id",
-            sa.Uuid(),
-            sa.ForeignKey("academic_divisions.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
+        sa.Column("subject_id", sa.Uuid(), nullable=False),
+        sa.Column("academic_division_id", sa.Uuid(), nullable=False),
         sa.PrimaryKeyConstraint(
             "subject_id",
             "academic_division_id",
